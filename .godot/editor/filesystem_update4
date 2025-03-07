@@ -1,0 +1,5 @@
+res://default_env.tres
+res://Scenes/Game.tscn
+res://Scenes/disk.gd
+res://Scenes/MainMenu.tscn
+res://Scenes/PuzzleGame.tscn

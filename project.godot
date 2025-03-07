@@ -11,17 +11,16 @@ config_version=5
 [application]
 
 config/name="New Match3"
-run/main_scene="res://Scenes/Game.tscn"
+run/main_scene="res://Scenes/MainMenu.tscn"
 config/features=PackedStringArray("4.3")
 boot_splash/bg_color=Color(0, 0, 0, 1)
 config/icon="res://icon.png"
 
 [display]
 
-window/size/viewport_width=800
-window/size/viewport_height=800
+window/size/viewport_width=1024
+window/size/viewport_height=1024
 window/stretch/mode="2d"
-window/stretch/aspect="keep"
 window/handheld/orientation="landscape"
 
 [input]

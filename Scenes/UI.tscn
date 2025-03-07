@@ -31,6 +31,7 @@ offset_right = 100.0
 offset_bottom = 13.0
 grow_horizontal = 2
 grow_vertical = 2
+theme_override_font_sizes/font_size = 32
 text = "剩余步数: 10"
 horizontal_alignment = 1
 vertical_alignment = 1
@@ -48,6 +49,7 @@ offset_right = -20.0
 offset_bottom = 13.0
 grow_horizontal = 0
 grow_vertical = 2
+theme_override_font_sizes/font_size = 32
 text = "分数: 0"
 horizontal_alignment = 2
 
@@ -57,7 +59,7 @@ anchors_preset = 12
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = -100.0
+offset_top = -120.0
 grow_horizontal = 2
 grow_vertical = 0
 
@@ -72,9 +74,8 @@ offset_right = -20.0
 offset_bottom = -10.0
 grow_horizontal = 2
 grow_vertical = 2
+theme_override_font_sizes/font_size = 24
 text = "操作说明：
-Tab - 切换环/直径模式
-↑↓ - 选择环/直径
-←→ - 旋转/移动"
+Tab - 切换环/直径模式    ↑↓ - 选择环/直径    ←→ - 旋转/移动"
 horizontal_alignment = 1
 vertical_alignment = 1 

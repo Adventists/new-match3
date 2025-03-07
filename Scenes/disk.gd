@@ -62,6 +62,12 @@ var ring_rotations = []  # 存储每个环的独立旋转角度
 var current_mode = ring_mode  # 当前选择模式
 var selected_diameter = -1  # 当前选中的直径（-1表示未选中）
 
+# 在文件开头的变量声明部分添加新的变量
+var is_diameter_moving = false
+var diameter_move_progress = 0.0
+var diameter_move_speed = 5.0  # 调整这个值可以改变移动速度
+var diameter_dots_movement = {}  # 存储点的起始位置和目标位置
+
 @onready var ui = get_node("/root/Game/UI")
 
 func _ready():
@@ -81,6 +87,8 @@ func _ready():
 	# 等待一帧确保UI已经准备好
 	await get_tree().process_frame
 	update_ui()
+	# 默认选中第一个环
+	select_ring(0)
 
 func _process(delta):
 	if is_rotating:
@@ -101,7 +109,35 @@ func _process(delta):
 			if selected_ring != -1:
 				ring_rotations[selected_ring] = current_rotation
 			is_rotating = false
-			state = move  # 旋转结束后恢复移动状态
+			# 检查是否有可消除的点
+			find_matches()
+			if !destroy_timer.is_stopped():
+				state = wait
+			else:
+				state = move  # 旋转结束后恢复移动状态
+	
+	if is_diameter_moving:
+		# 直径移动动画
+		diameter_move_progress += delta * diameter_move_speed
+		if diameter_move_progress >= 1.0:
+			# 动画结束，设置最终位置
+			for dot in diameter_dots_movement:
+				dot.position = diameter_dots_movement[dot]["end"]
+			diameter_dots_movement.clear()
+			is_diameter_moving = false
+			diameter_move_progress = 0.0
+			# 检查是否有可消除的点
+			find_matches()
+			if !destroy_timer.is_stopped():
+				state = wait
+			else:
+				state = move
+		else:
+			# 更新动画中的点位置
+			for dot in diameter_dots_movement:
+				var start_pos = diameter_dots_movement[dot]["start"]
+				var end_pos = diameter_dots_movement[dot]["end"]
+				dot.position = start_pos.lerp(end_pos, diameter_move_progress)
 
 func _input(event):
 	if event is InputEventKey:
@@ -191,15 +227,20 @@ func update_all_dots_positions():
 		for radius_index in num_radii:
 			if all_dots[angle_index][radius_index] != null:
 				var dot = all_dots[angle_index][radius_index]
-				# 计算点的位置，考虑每个环的独立旋转
 				var angle_step = 2 * PI / num_angles
-				var angle = angle_index * angle_step + ring_rotations[radius_index]
+				var angle = angle_index * angle_step
+				
+				# 在环模式下应用环的旋转
+				if current_mode == ring_mode:
+					angle += ring_rotations[radius_index]
+					
 				var radius = base_radius + (radius_index * spacing)
 				var x = cos(angle) * radius
 				var y = sin(angle) * radius
 				dot.position = Vector2(x, y) + center
-				# 更新高亮位置
-				if radius_index == selected_ring:
+				
+				# 只在环模式下更新环的高亮旋转
+				if current_mode == ring_mode and radius_index == selected_ring:
 					ring_highlights[radius_index].rotation = ring_rotations[radius_index]
 
 func setup_timers():
@@ -238,7 +279,7 @@ func spawn_dots():
 				var loops = 0
 
 				# 防止初始生成就有匹配
-				while (match_at(angle_index, radius_index, dot.color) && loops < 100):
+				while (match_at(angle_index, radius_index, dot.color) and loops < 100):
 					rand = floor(randf_range(0, possible_dots.size()))
 					loops += 1
 					dot = possible_dots[rand].instantiate()
@@ -261,20 +302,210 @@ func is_in_array(array, item):
 	return false
 
 func match_at(angle_index, radius_index, color):
-	# 角度方向匹配（检查左右相邻的角度）
-	if angle_index > 1:
-		if all_dots[angle_index - 1][radius_index] != null && all_dots[angle_index - 2][radius_index] != null:
-			if all_dots[angle_index - 1][radius_index].color == color && all_dots[angle_index - 2][radius_index].color == color:
+	# 半径方向匹配（检查内圈的点）
+	if radius_index > 2:
+		if (all_dots[angle_index][radius_index - 1] != null 
+			and all_dots[angle_index][radius_index - 2] != null
+			and all_dots[angle_index][radius_index - 3] != null):
+			if (all_dots[angle_index][radius_index - 1].color == color 
+				and all_dots[angle_index][radius_index - 2].color == color
+				and all_dots[angle_index][radius_index - 3].color == color):
 				return true
 
-	# 半径方向匹配（检查内圈和外圈）
-	if radius_index > 1:
-		if all_dots[angle_index][radius_index - 1] != null && all_dots[angle_index][radius_index - 2] != null:
-			if all_dots[angle_index][radius_index - 1].color == color && all_dots[angle_index][radius_index - 2].color == color:
-				return true
+	# 环方向匹配（检查相邻的点）
+	var count = 1
+	var i = angle_index - 1
+	# 向左检查连续相同颜色的点
+	while i >= 0:
+		if all_dots[i][radius_index] != null and all_dots[i][radius_index].color == color:
+			count += 1
+			i -= 1
+		else:
+			break
+	
+	i = angle_index + 1
+	# 向右检查连续相同颜色的点
+	while i < num_angles:
+		if all_dots[i][radius_index] != null and all_dots[i][radius_index].color == color:
+			count += 1
+			i += 1
+		else:
+			break
+	
+	# 处理环形边界情况
+	if angle_index == 0 or angle_index == num_angles - 1:
+		var left_count = 0
+		var right_count = 0
+		i = num_angles - 1
+		# 从最右边检查到左边
+		while i >= 0:
+			if all_dots[i][radius_index] != null and all_dots[i][radius_index].color == color:
+				left_count += 1
+				i -= 1
+			else:
+				break
+		
+		i = 0
+		# 从最左边检查到右边
+		while i < num_angles:
+			if all_dots[i][radius_index] != null and all_dots[i][radius_index].color == color:
+				right_count += 1
+				i += 1
+			else:
+				break
+		
+		count = max(count, left_count + right_count)
+	
+	return count >= 4
 
-	return false
+func find_matches():
+	var was_matched = false
+	var matched_dots = []
+	
+	# 检查半径方向的匹配
+	for angle_index in num_angles:
+		var current_color = null
+		var count = 0
+		var current_matched = []
+		
+		for radius_index in range(num_radii - 1, -1, -1):  # 从外向内检查
+			if all_dots[angle_index][radius_index] != null:
+				var dot = all_dots[angle_index][radius_index]
+				if current_color == null:
+					current_color = dot.color
+					count = 1
+					current_matched = [dot]
+				elif dot.color == current_color:
+					count += 1
+					current_matched.append(dot)
+					if count >= 4:
+						was_matched = true
+						matched_dots.append_array(current_matched)
+				else:
+					current_color = dot.color
+					count = 1
+					current_matched = [dot]
+	
+	# 检查环方向的匹配
+	for radius_index in num_radii:
+		var current_color = null
+		var count = 0
+		var current_matched = []
+		var first_dot = null
+		var first_color = null
+		
+		# 先检查普通的连续匹配
+		for angle_index in num_angles:
+			if all_dots[angle_index][radius_index] != null:
+				var dot = all_dots[angle_index][radius_index]
+				if angle_index == 0:
+					first_dot = dot
+					first_color = dot.color
+				
+				if current_color == null:
+					current_color = dot.color
+					count = 1
+					current_matched = [dot]
+				elif dot.color == current_color:
+					count += 1
+					current_matched.append(dot)
+					if count >= 4:
+						was_matched = true
+						matched_dots.append_array(current_matched)
+				else:
+					current_color = dot.color
+					count = 1
+					current_matched = [dot]
+		
+		# 检查跨越边界的匹配
+		if first_dot != null and first_color == current_color:
+			var wrap_count = 0
+			var wrap_matched = []
+			# 从末尾向前检查
+			for i in range(num_angles - 1, -1, -1):
+				if all_dots[i][radius_index] != null and all_dots[i][radius_index].color == first_color:
+					wrap_count += 1
+					wrap_matched.append(all_dots[i][radius_index])
+				else:
+					break
+			# 从开头向后检查
+			for i in range(0, num_angles):
+				if all_dots[i][radius_index] != null and all_dots[i][radius_index].color == first_color:
+					wrap_count += 1
+					wrap_matched.append(all_dots[i][radius_index])
+				else:
+					break
+			
+			if wrap_count >= 4:
+				was_matched = true
+				matched_dots.append_array(wrap_matched)
+	
+	# 标记所有匹配的点
+	for dot in matched_dots:
+		dot.matched = true
+		dot.dim()
+		score += 1
+	
+	if was_matched:
+		destroy_timer.start()
+	
+	return was_matched
 
+func collapse_columns():
+	var moved = false
+	
+	# 从外圈向内圈遍历
+	for angle_index in num_angles:
+		for radius_index in range(num_radii - 1, 0, -1):  # 从外向内
+			if all_dots[angle_index][radius_index] == null:
+				# 找到内圈最近的非空点
+				for inner_radius in range(radius_index - 1, -1, -1):
+					if all_dots[angle_index][inner_radius] != null:
+						# 移动点到外圈
+						var dot = all_dots[angle_index][inner_radius]
+						all_dots[angle_index][inner_radius] = null
+						all_dots[angle_index][radius_index] = dot
+						dot.move(grid_to_pixel(angle_index, radius_index))
+						moved = true
+						break
+	
+	if moved:
+		collapse_timer.start()
+	else:
+		refill_timer.start()
+
+func refill_columns():
+	var refilled = false
+	
+	for angle_index in num_angles:
+		for radius_index in num_radii:
+			if all_dots[angle_index][radius_index] == null and !restricted_fill(Vector2(angle_index, radius_index)):
+				var rand = floor(randf_range(0, possible_dots.size()))
+				var dot = possible_dots[rand].instantiate()
+				var loops = 0
+				
+				while (match_at(angle_index, radius_index, dot.color) and loops < 100):
+					rand = floor(randf_range(0, possible_dots.size()))
+					loops += 1
+					dot = possible_dots[rand].instantiate()
+				
+				add_child(dot)
+				# 设置初始位置在圆心
+				dot.position = center
+				# 移动到目标位置
+				dot.move(grid_to_pixel(angle_index, radius_index))
+				all_dots[angle_index][radius_index] = dot
+				refilled = true
+	
+	if refilled:
+		await get_tree().create_timer(0.3).timeout
+		# 检查新填充的点是否形成匹配
+		if find_matches():
+			destroy_timer.start()
+		else:
+			state = move
+	else:
+		state = move
 
 func grid_to_pixel(angle_index, radius_index, apply_rotation: bool = true):
 	var angle_step = 2 * PI / num_angles  # 每个角度片段的弧度
@@ -337,13 +568,14 @@ func create_ring_highlights():
 		line.width = 20  # 增加线宽
 		
 		var angle = diameter * (2 * PI / num_angles)
+		# 计算直径的两个端点（从一端到另一端）
 		var start_point = Vector2(
-			cos(angle) * (base_radius - 50),  # 延长起点
-			sin(angle) * (base_radius - 50)
+			cos(angle) * (base_radius + (num_radii - 1) * spacing + 50),
+			sin(angle) * (base_radius + (num_radii - 1) * spacing + 50)
 		)
 		var end_point = Vector2(
-			cos(angle) * (base_radius + (num_radii - 1) * spacing + 50),  # 延长终点
-			sin(angle) * (base_radius + (num_radii - 1) * spacing + 50)
+			cos(angle + PI) * (base_radius + (num_radii - 1) * spacing + 50),
+			sin(angle + PI) * (base_radius + (num_radii - 1) * spacing + 50)
 		)
 		
 		line.add_point(start_point)
@@ -373,29 +605,74 @@ func select_ring(ring: int):
 	# 设置新的高亮
 	selected_ring = ring
 	ring_highlights[selected_ring].visible = true
+	
+	# 重置当前环的旋转状态
+	current_rotation = ring_rotations[ring]
+	target_rotation = current_rotation
 
 func select_previous_ring():
-	if selected_ring <= 0:
-		select_ring(num_radii - 1)
+	if selected_ring >= num_radii - 1:
+		select_ring(0)  # 如果是最外圈，跳到最内圈
 	else:
-		select_ring(selected_ring - 1)
+		select_ring(selected_ring + 1)  # 否则向外移动一圈
 
 func select_next_ring():
-	if selected_ring >= num_radii - 1:
-		select_ring(0)
+	if selected_ring <= 0:
+		select_ring(num_radii - 1)  # 如果是最内圈，跳到最外圈
 	else:
-		select_ring(selected_ring + 1)
+		select_ring(selected_ring - 1)  # 否则向内移动一圈
 
 func toggle_selection_mode():
+	# 如果是从环模式切换到直径模式，需要先更新数组中的点位置
+	if current_mode == ring_mode:
+		var temp_array = make_polar_array()
+		# 根据当前的旋转状态计算每个点的实际位置
+		for angle_index in num_angles:
+			for radius_index in num_radii:
+				if all_dots[angle_index][radius_index] != null:
+					var dot = all_dots[angle_index][radius_index]
+					var angle_step = 2 * PI / num_angles
+					var rotated_angle = angle_index * angle_step + ring_rotations[radius_index]
+					# 计算实际的角度索引
+					var actual_angle_index = int(round(rotated_angle / angle_step)) % num_angles
+					if actual_angle_index < 0:
+						actual_angle_index += num_angles
+					# 将点放在新的位置
+					temp_array[actual_angle_index][radius_index] = dot
+		# 更新数组
+		all_dots = temp_array
+	
+	# 切换模式
 	current_mode = diameter_mode if current_mode == ring_mode else ring_mode
+	
 	# 重置选择状态
 	if current_mode == ring_mode:
 		selected_diameter = -1
 		update_diameter_highlights()
+		select_ring(0)  # 默认选择第一个环
 	else:
 		selected_ring = -1
 		update_ring_highlights()
 		select_diameter(0)  # 默认选择第一条直径
+	
+	# 重置旋转状态
+	current_rotation = 0.0
+	target_rotation = 0.0
+	is_rotating = false
+	
+	# 重置环的旋转
+	for i in range(num_radii):
+		ring_rotations[i] = 0.0
+	
+	# 更新所有点的位置
+	update_all_dots_positions()
+	
+	# 在切换模式后立即检查是否有可消除的点
+	if find_matches():
+		state = wait
+		destroy_timer.start()
+	else:
+		state = move
 
 func select_diameter(diameter_index: int):
 	if diameter_index == selected_diameter:
@@ -423,74 +700,224 @@ func move_diameter_clockwise():
 		return
 		
 	state = wait
-	# 保存直径上的所有点
-	var dots_to_move = []
-	for radius_index in range(num_radii):
-		var angle_index = (selected_diameter + radius_index * (num_angles / 2)) % num_angles
-		if all_dots[angle_index][radius_index] != null:
-			dots_to_move.append(all_dots[angle_index][radius_index])
+	# 获取选中直径的角度
+	var angle1 = selected_diameter * (2 * PI / num_angles)  # 一端
+	var angle2 = angle1 + PI  # 另一端（相差180度）
 	
-	# 移动点
-	if dots_to_move.size() > 0:
-		var last_dot = dots_to_move.back()
-		for i in range(dots_to_move.size() - 1, 0, -1):
-			var current_angle = get_dot_angle(dots_to_move[i])
-			var next_angle = get_dot_angle(dots_to_move[i-1])
-			all_dots[current_angle][get_dot_radius(dots_to_move[i])] = dots_to_move[i-1]
-			all_dots[next_angle][get_dot_radius(dots_to_move[i-1])] = dots_to_move[i]
+	# 将弧度转换为角度索引
+	var angle_index1 = selected_diameter
+	var angle_index2 = (selected_diameter + num_angles / 2) % num_angles
+	
+	var first_side_dots = []  # angle1方向的点
+	var second_side_dots = []  # angle2方向的点
+	
+	# 收集两端的点
+	for radius_index in range(num_radii):
+		if all_dots[angle_index1][radius_index] != null:
+			first_side_dots.append({"dot": all_dots[angle_index1][radius_index], "radius": radius_index, "angle": angle_index1})
+		if all_dots[angle_index2][radius_index] != null:
+			second_side_dots.append({"dot": all_dots[angle_index2][radius_index], "radius": radius_index, "angle": angle_index2})
+	
+	# 创建临时数组来存储新的位置
+	var new_positions = {}
+	diameter_dots_movement.clear()  # 清除之前的动画数据
+	
+	# 检查是否是45度角的直径（第1个或第3个直径）
+	var is_45_degree = selected_diameter == 1 or selected_diameter == 3
+	
+	if is_45_degree:
+		# 45度角的直径反转移动方向
+		# 计算angle1方向的点的新位置（环数-1）
+		for dot_info in first_side_dots:
+			var current_radius = dot_info["radius"]
+			var current_angle = dot_info["angle"]
+			var dot = dot_info["dot"]
+			
+			if current_radius == 0:
+				# 如果是最内圈，移到对面的最内圈
+				new_positions[dot] = {"angle": angle_index2, "radius": current_radius}
+			else:
+				# 否则环数-1
+				new_positions[dot] = {"angle": current_angle, "radius": current_radius - 1}
 		
-		# 移动最后一个点
-		var first_angle = get_dot_angle(dots_to_move[0])
-		var last_angle = get_dot_angle(last_dot)
-		all_dots[first_angle][get_dot_radius(dots_to_move[0])] = last_dot
-		all_dots[last_angle][get_dot_radius(last_dot)] = dots_to_move[0]
+		# 计算angle2方向的点的新位置（环数+1）
+		for dot_info in second_side_dots:
+			var current_radius = dot_info["radius"]
+			var current_angle = dot_info["angle"]
+			var dot = dot_info["dot"]
+			
+			if current_radius == num_radii - 1:
+				# 如果是最外圈，移到对面的最外圈
+				new_positions[dot] = {"angle": angle_index1, "radius": current_radius}
+			else:
+				# 否则环数+1
+				new_positions[dot] = {"angle": current_angle, "radius": current_radius + 1}
+	else:
+		# 其他角度的直径保持原有的移动方向
+		# 计算angle1方向的点的新位置（环数+1）
+		for dot_info in first_side_dots:
+			var current_radius = dot_info["radius"]
+			var current_angle = dot_info["angle"]
+			var dot = dot_info["dot"]
+			
+			if current_radius == num_radii - 1:
+				# 如果是最外圈，移到对面的最外圈
+				new_positions[dot] = {"angle": angle_index2, "radius": current_radius}
+			else:
+				# 否则环数+1
+				new_positions[dot] = {"angle": current_angle, "radius": current_radius + 1}
 		
-		update_all_dots_positions()
-		state = move
+		# 计算angle2方向的点的新位置（环数-1）
+		for dot_info in second_side_dots:
+			var current_radius = dot_info["radius"]
+			var current_angle = dot_info["angle"]
+			var dot = dot_info["dot"]
+			
+			if current_radius == 0:
+				# 如果是最内圈，移到对面的最内圈
+				new_positions[dot] = {"angle": angle_index1, "radius": current_radius}
+			else:
+				# 否则环数-1
+				new_positions[dot] = {"angle": current_angle, "radius": current_radius - 1}
+	
+	# 保存所有点的起始和目标位置用于动画
+	for dot in new_positions:
+		var new_pos = new_positions[dot]
+		var target_angle = new_pos["angle"] * (2 * PI / num_angles)
+		var target_radius = base_radius + (new_pos["radius"] * spacing)
+		var target_x = cos(target_angle) * target_radius
+		var target_y = sin(target_angle) * target_radius
+		var target_position = Vector2(target_x, target_y) + center
+		
+		diameter_dots_movement[dot] = {
+			"start": dot.position,
+			"end": target_position
+		}
+	
+	# 清除所有涉及的点的原位置
+	for dot_info in first_side_dots + second_side_dots:
+		all_dots[dot_info["angle"]][dot_info["radius"]] = null
+	
+	# 将点移动到新位置（在数组中）
+	for dot in new_positions:
+		var new_pos = new_positions[dot]
+		all_dots[new_pos["angle"]][new_pos["radius"]] = dot
+	
+	# 开始动画
+	is_diameter_moving = true
+	diameter_move_progress = 0.0
 
 func move_diameter_counter_clockwise():
 	if state != move or selected_diameter == -1:
 		return
 		
 	state = wait
-	# 保存直径上的所有点
-	var dots_to_move = []
-	for radius_index in range(num_radii):
-		var angle_index = (selected_diameter + radius_index * (num_angles / 2)) % num_angles
-		if all_dots[angle_index][radius_index] != null:
-			dots_to_move.append(all_dots[angle_index][radius_index])
+	# 获取选中直径的角度
+	var angle1 = selected_diameter * (2 * PI / num_angles)  # 一端
+	var angle2 = angle1 + PI  # 另一端（相差180度）
 	
-	# 移动点
-	if dots_to_move.size() > 0:
-		var first_dot = dots_to_move[0]
-		for i in range(0, dots_to_move.size() - 1):
-			var current_angle = get_dot_angle(dots_to_move[i])
-			var next_angle = get_dot_angle(dots_to_move[i+1])
-			all_dots[current_angle][get_dot_radius(dots_to_move[i])] = dots_to_move[i+1]
-			all_dots[next_angle][get_dot_radius(dots_to_move[i+1])] = dots_to_move[i]
+	# 将弧度转换为角度索引
+	var angle_index1 = selected_diameter
+	var angle_index2 = (selected_diameter + num_angles / 2) % num_angles
+	
+	var first_side_dots = []  # angle1方向的点
+	var second_side_dots = []  # angle2方向的点
+	
+	# 收集两端的点
+	for radius_index in range(num_radii):
+		if all_dots[angle_index1][radius_index] != null:
+			first_side_dots.append({"dot": all_dots[angle_index1][radius_index], "radius": radius_index, "angle": angle_index1})
+		if all_dots[angle_index2][radius_index] != null:
+			second_side_dots.append({"dot": all_dots[angle_index2][radius_index], "radius": radius_index, "angle": angle_index2})
+	
+	# 创建临时数组来存储新的位置
+	var new_positions = {}
+	diameter_dots_movement.clear()  # 清除之前的动画数据
+	
+	# 检查是否是45度角的直径（第1个或第3个直径）
+	var is_45_degree = selected_diameter == 1 or selected_diameter == 3
+	
+	if is_45_degree:
+		# 45度角的直径反转移动方向
+		# 计算angle1方向的点的新位置（环数+1）
+		for dot_info in first_side_dots:
+			var current_radius = dot_info["radius"]
+			var current_angle = dot_info["angle"]
+			var dot = dot_info["dot"]
+			
+			if current_radius == num_radii - 1:
+				# 如果是最外圈，移到对面的最外圈
+				new_positions[dot] = {"angle": angle_index2, "radius": current_radius}
+			else:
+				# 否则环数+1
+				new_positions[dot] = {"angle": current_angle, "radius": current_radius + 1}
 		
-		# 移动最后一个点
-		var last_angle = get_dot_angle(dots_to_move.back())
-		var first_angle = get_dot_angle(first_dot)
-		all_dots[last_angle][get_dot_radius(dots_to_move.back())] = first_dot
-		all_dots[first_angle][get_dot_radius(first_dot)] = dots_to_move.back()
+		# 计算angle2方向的点的新位置（环数-1）
+		for dot_info in second_side_dots:
+			var current_radius = dot_info["radius"]
+			var current_angle = dot_info["angle"]
+			var dot = dot_info["dot"]
+			
+			if current_radius == 0:
+				# 如果是最内圈，移到对面的最内圈
+				new_positions[dot] = {"angle": angle_index1, "radius": current_radius}
+			else:
+				# 否则环数-1
+				new_positions[dot] = {"angle": current_angle, "radius": current_radius - 1}
+	else:
+		# 其他角度的直径保持原有的移动方向
+		# 计算angle1方向的点的新位置（环数-1）
+		for dot_info in first_side_dots:
+			var current_radius = dot_info["radius"]
+			var current_angle = dot_info["angle"]
+			var dot = dot_info["dot"]
+			
+			if current_radius == 0:
+				# 如果是最内圈，移到对面的最内圈
+				new_positions[dot] = {"angle": angle_index2, "radius": current_radius}
+			else:
+				# 否则环数-1
+				new_positions[dot] = {"angle": current_angle, "radius": current_radius - 1}
 		
-		update_all_dots_positions()
-		state = move
-
-func get_dot_angle(dot) -> int:
-	for angle_index in range(num_angles):
-		for radius_index in range(num_radii):
-			if all_dots[angle_index][radius_index] == dot:
-				return angle_index
-	return -1
-
-func get_dot_radius(dot) -> int:
-	for angle_index in range(num_angles):
-		for radius_index in range(num_radii):
-			if all_dots[angle_index][radius_index] == dot:
-				return radius_index
-	return -1
+		# 计算angle2方向的点的新位置（环数+1）
+		for dot_info in second_side_dots:
+			var current_radius = dot_info["radius"]
+			var current_angle = dot_info["angle"]
+			var dot = dot_info["dot"]
+			
+			if current_radius == num_radii - 1:
+				# 如果是最外圈，移到对面的最外圈
+				new_positions[dot] = {"angle": angle_index1, "radius": current_radius}
+			else:
+				# 否则环数+1
+				new_positions[dot] = {"angle": current_angle, "radius": current_radius + 1}
+	
+	# 保存所有点的起始和目标位置用于动画
+	for dot in new_positions:
+		var new_pos = new_positions[dot]
+		var target_angle = new_pos["angle"] * (2 * PI / num_angles)
+		var target_radius = base_radius + (new_pos["radius"] * spacing)
+		var target_x = cos(target_angle) * target_radius
+		var target_y = sin(target_angle) * target_radius
+		var target_position = Vector2(target_x, target_y) + center
+		
+		diameter_dots_movement[dot] = {
+			"start": dot.position,
+			"end": target_position
+		}
+	
+	# 清除所有涉及的点的原位置
+	for dot_info in first_side_dots + second_side_dots:
+		all_dots[dot_info["angle"]][dot_info["radius"]] = null
+	
+	# 将点移动到新位置（在数组中）
+	for dot in new_positions:
+		var new_pos = new_positions[dot]
+		all_dots[new_pos["angle"]][new_pos["radius"]] = dot
+	
+	# 开始动画
+	is_diameter_moving = true
+	diameter_move_progress = 0.0
 
 func update_ring_highlights():
 	for i in range(num_radii):
@@ -499,3 +926,20 @@ func update_ring_highlights():
 func update_diameter_highlights():
 	for i in range(num_radii, ring_highlights.size()):
 		ring_highlights[i].visible = (i - num_radii == selected_diameter)
+
+func destroy_matches():
+	# 遍历所有点，删除被标记为匹配的点
+	var was_matched = false
+	for angle_index in num_angles:
+		for radius_index in num_radii:
+			if all_dots[angle_index][radius_index] != null:
+				if all_dots[angle_index][radius_index].matched:
+					# 删除节点
+					all_dots[angle_index][radius_index].queue_free()
+					all_dots[angle_index][radius_index] = null
+					was_matched = true
+
+	if was_matched:
+		collapse_timer.start()
+	else:
+		state = move

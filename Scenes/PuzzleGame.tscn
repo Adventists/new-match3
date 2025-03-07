@@ -1,0 +1,17 @@
+[gd_scene load_steps=2 format=3 uid="uid://dnscedcr234hk"]
+
+[ext_resource type="Script" path="res://Scenes/disk.gd" id="2_setwh"]
+
+[node name="PuzzleGame" type="Node"]
+
+[node name="ColorRect" type="ColorRect" parent="."]
+z_index = -2
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 1)
+
+[node name="Disk" type="Node2D" parent="."]
+script = ExtResource("2_setwh")
+num_radii = 4
+spacing = 75.0

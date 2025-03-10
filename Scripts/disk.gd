@@ -49,15 +49,16 @@ var final_touch = Vector2(0,0)
 var controlling = false
 
 # 旋转相关变量
-var current_rotation = 0.0  # 当前旋转角度
-var target_rotation = 0.0   # 目标旋转角度
-var rotation_speed = 15.0   # 增加旋转速度
-var is_rotating = false     # 是否正在旋转
+var current_angle_index = 0  # 当前角度索引
+var target_angle_index = 0   # 目标角度索引
+var rotation_speed = 15.0    # 旋转速度
+var is_rotating = false      # 是否正在旋转
+var rotation_progress = 0.0  # 动画进度
 
 # 环选择相关变量
-var selected_ring = -1  # 当前选中的环（-1表示未选中）
-var ring_highlights = []  # 存储环的高亮节点
-var ring_rotations = []  # 存储每个环的独立旋转角度
+var selected_ring = -1       # 当前选中的环（-1表示未选中）
+var ring_highlights = []     # 存储环的高亮节点
+var ring_angle_indices = []  # 存储每个环的角度索引
 
 # 直径选择相关变量
 var current_mode = ring_mode  # 当前选择模式
@@ -75,13 +76,12 @@ func _ready():
 	state = move
 	setup_timers()
 	randomize()
-	# 获取视口大小并设置中心点
 	var viewport_size = get_viewport_rect().size
 	center = viewport_size / 2
-	# 初始化每个环的旋转角度
-	ring_rotations.resize(num_radii)
+	# 初始化角度索引数组
+	ring_angle_indices.resize(num_radii)
 	for i in range(num_radii):
-		ring_rotations[i] = 0.0
+		ring_angle_indices[i] = 0
 	all_dots = make_polar_array()
 	spawn_dots()
 	create_ring_highlights()  # 创建环的高亮
@@ -93,28 +93,23 @@ func _ready():
 
 func _process(delta):
 	if is_rotating:
-		# 计算旋转插值
-		var rotation_diff = target_rotation - current_rotation
-		if abs(rotation_diff) > 0.05:  # 减小阈值，使动画更平滑
-			# 使用线性插值，但确保方向正确
-			var step = rotation_diff * delta * rotation_speed
-			current_rotation += step
-			# 更新选中环的旋转
+		rotation_progress += delta * rotation_speed
+		if rotation_progress >= 1.0:
+			# 动画结束，直接设置到目标位置
 			if selected_ring != -1:
-				ring_rotations[selected_ring] = current_rotation
-			update_all_dots_positions()
-		else:
-			# 确保最终位置是精确的
-			current_rotation = target_rotation
-			if selected_ring != -1:
-				ring_rotations[selected_ring] = current_rotation
+				ring_angle_indices[selected_ring] = target_angle_index
+				# 强制更新所有点到最终位置
+				update_all_dots_positions(true)
 			is_rotating = false
-			# 检查是否有可消除的点
+			rotation_progress = 0.0
 			find_matches()
 			if !destroy_timer.is_stopped():
 				state = wait
 			else:
-				state = move  # 旋转结束后恢复移动状态
+				state = move
+		else:
+			# 动画过程中只更新点的位置
+			update_all_dots_positions(false)
 	
 	if is_diameter_moving:
 		# 直径移动动画
@@ -206,7 +201,9 @@ func rotate_clockwise():
 		
 	state = wait
 	is_rotating = true
-	target_rotation = current_rotation + (2 * PI / num_angles)
+	current_angle_index = ring_angle_indices[selected_ring]
+	target_angle_index = (current_angle_index + 1) % num_angles
+	rotation_progress = 0.0
 	remaining_moves -= 1
 	update_ui()
 
@@ -216,11 +213,13 @@ func rotate_counter_clockwise():
 		
 	state = wait
 	is_rotating = true
-	target_rotation = current_rotation - (2 * PI / num_angles)
+	current_angle_index = ring_angle_indices[selected_ring]
+	target_angle_index = (current_angle_index - 1 + num_angles) % num_angles
+	rotation_progress = 0.0
 	remaining_moves -= 1
 	update_ui()
 
-func update_all_dots_positions():
+func update_all_dots_positions(force_final_position: bool = false):
 	for angle_index in num_angles:
 		for radius_index in num_radii:
 			if all_dots[angle_index][radius_index] != null:
@@ -230,17 +229,29 @@ func update_all_dots_positions():
 				# 计算实际角度
 				var actual_angle = angle_index * angle_step
 				if current_mode == ring_mode:
-					# 使用环的旋转角度来计算实际角度
-					actual_angle += ring_rotations[radius_index]
+					if is_rotating and radius_index == selected_ring and not force_final_position:
+						# 在动画过程中，使用 rotation_progress 插值
+						var start_angle = (angle_index + current_angle_index) * angle_step
+						var end_angle = (angle_index + target_angle_index) * angle_step
+						actual_angle = lerp_angle(start_angle, end_angle, ease(rotation_progress, 0.5))
+					else:
+						# 使用精确的索引位置
+						var final_index = (angle_index + ring_angle_indices[radius_index]) % num_angles
+						actual_angle = final_index * angle_step
 				
 				var radius = base_radius + (radius_index * spacing)
 				var x = cos(actual_angle) * radius
 				var y = sin(actual_angle) * radius
 				dot.position = Vector2(x, y) + center
 				
-				# 只在环模式下更新环的高亮旋转
+				# 更新高亮环的旋转
 				if current_mode == ring_mode and radius_index == selected_ring:
-					ring_highlights[radius_index].rotation = ring_rotations[radius_index]
+					if is_rotating and not force_final_position:
+						var start_angle = current_angle_index * angle_step
+						var end_angle = target_angle_index * angle_step
+						ring_highlights[radius_index].rotation = lerp_angle(start_angle, end_angle, ease(rotation_progress, 0.5))
+					else:
+						ring_highlights[radius_index].rotation = ring_angle_indices[radius_index] * angle_step
 
 func setup_timers():
 	destroy_timer.connect("timeout", Callable(self, "destroy_matches"))
@@ -605,10 +616,11 @@ func select_ring(ring: int):
 	selected_ring = ring
 	ring_highlights[selected_ring].visible = true
 	
-	# 重置当前环的旋转状态
-	current_rotation = ring_rotations[ring]
-	target_rotation = current_rotation
-	is_rotating = false  # 确保停止任何正在进行的旋转
+	# 使用当前环的角度索引
+	current_angle_index = ring_angle_indices[ring]
+	target_angle_index = current_angle_index
+	rotation_progress = 0.0
+	is_rotating = false
 
 func select_previous_ring():
 	if selected_ring >= num_radii - 1:
@@ -623,51 +635,41 @@ func select_next_ring():
 		select_ring(selected_ring - 1)  # 否则向内移动一圈
 
 func toggle_selection_mode():
-	# 如果是从环模式切换到直径模式，需要先更新数组中的点位置
 	if current_mode == ring_mode:
 		var temp_array = make_polar_array()
-		# 根据当前的旋转状态计算每个点的实际位置
 		for angle_index in num_angles:
 			for radius_index in num_radii:
 				if all_dots[angle_index][radius_index] != null:
 					var dot = all_dots[angle_index][radius_index]
-					var angle_step = 2 * PI / num_angles
-					var rotated_angle = angle_index * angle_step + ring_rotations[radius_index]
-					# 计算实际的角度索引
-					var actual_angle_index = int(round(rotated_angle / angle_step)) % num_angles
+					var actual_angle_index = (angle_index + ring_angle_indices[radius_index]) % num_angles
 					if actual_angle_index < 0:
 						actual_angle_index += num_angles
-					# 将点放在新的位置
 					temp_array[actual_angle_index][radius_index] = dot
-		# 更新数组
 		all_dots = temp_array
 	
-	# 切换模式
 	current_mode = diameter_mode if current_mode == ring_mode else ring_mode
 	
-	# 重置选择状态
 	if current_mode == ring_mode:
 		selected_diameter = -1
 		update_diameter_highlights()
-		select_ring(0)  # 默认选择第一个环
+		select_ring(0)
 	else:
 		selected_ring = -1
 		update_ring_highlights()
-		select_diameter(0)  # 默认选择第一条直径
+		select_diameter(0)
 	
 	# 重置旋转状态
-	current_rotation = 0.0
-	target_rotation = 0.0
+	current_angle_index = 0
+	target_angle_index = 0
 	is_rotating = false
+	rotation_progress = 0.0
 	
-	# 重置环的旋转
+	# 重置所有环的角度索引
 	for i in range(num_radii):
-		ring_rotations[i] = 0.0
+		ring_angle_indices[i] = 0
 	
-	# 更新所有点的位置
 	update_all_dots_positions()
 	
-	# 在切换模式后立即检查是否有可消除的点
 	if find_matches():
 		state = wait
 		destroy_timer.start()

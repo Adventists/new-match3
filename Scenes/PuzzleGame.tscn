@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://dnscedcr234hk"]
 
-[ext_resource type="Script" path="res://Scenes/disk.gd" id="2_setwh"]
+[ext_resource type="Script" path="res://Scripts/disk.gd" id="2_setwh"]
 
 [node name="PuzzleGame" type="Node"]
 

@@ -11,6 +11,7 @@ var score = 0 #分数
 
 @export var num_angles: int = 8  # 角度切分数量，例如 8 份
 @export var num_radii: int = 5   # 圆盘的层数（半径方向），改为5圈
+@export var match_count: int = 4  # 需要多少个相同颜色的点才会消除
 var center = Vector2(400, 400)   # 圆盘起始位置。圆盘的中心点（假设窗口大小 800x800）
 
 @export var empty_spaces: PackedVector2Array  # 网格中空白不可放置元素的位置  (angle_index, radius_index)
@@ -98,14 +99,13 @@ func _process(delta):
 			# 使用线性插值，但确保方向正确
 			var step = rotation_diff * delta * rotation_speed
 			current_rotation += step
-			# 更新选中环的旋转角度
+			# 更新选中环的旋转
 			if selected_ring != -1:
 				ring_rotations[selected_ring] = current_rotation
 			update_all_dots_positions()
 		else:
-			# 确保最终角度是精确的45度倍数
-			var angle_step = 2 * PI / num_angles
-			current_rotation = round(target_rotation / angle_step) * angle_step
+			# 确保最终位置是精确的
+			current_rotation = target_rotation
 			if selected_ring != -1:
 				ring_rotations[selected_ring] = current_rotation
 			is_rotating = false
@@ -206,8 +206,7 @@ func rotate_clockwise():
 		
 	state = wait
 	is_rotating = true
-	var angle_step = 2 * PI / num_angles
-	target_rotation = current_rotation + angle_step
+	target_rotation = current_rotation + (2 * PI / num_angles)
 	remaining_moves -= 1
 	update_ui()
 
@@ -217,8 +216,7 @@ func rotate_counter_clockwise():
 		
 	state = wait
 	is_rotating = true
-	var angle_step = 2 * PI / num_angles
-	target_rotation = current_rotation - angle_step
+	target_rotation = current_rotation - (2 * PI / num_angles)
 	remaining_moves -= 1
 	update_ui()
 
@@ -228,15 +226,16 @@ func update_all_dots_positions():
 			if all_dots[angle_index][radius_index] != null:
 				var dot = all_dots[angle_index][radius_index]
 				var angle_step = 2 * PI / num_angles
-				var angle = angle_index * angle_step
 				
-				# 在环模式下应用环的旋转
+				# 计算实际角度
+				var actual_angle = angle_index * angle_step
 				if current_mode == ring_mode:
-					angle += ring_rotations[radius_index]
-					
+					# 使用环的旋转角度来计算实际角度
+					actual_angle += ring_rotations[radius_index]
+				
 				var radius = base_radius + (radius_index * spacing)
-				var x = cos(angle) * radius
-				var y = sin(angle) * radius
+				var x = cos(actual_angle) * radius
+				var y = sin(actual_angle) * radius
 				dot.position = Vector2(x, y) + center
 				
 				# 只在环模式下更新环的高亮旋转
@@ -303,14 +302,14 @@ func is_in_array(array, item):
 
 func match_at(angle_index, radius_index, color):
 	# 半径方向匹配（检查内圈的点）
-	if radius_index > 2:
-		if (all_dots[angle_index][radius_index - 1] != null 
-			and all_dots[angle_index][radius_index - 2] != null
-			and all_dots[angle_index][radius_index - 3] != null):
-			if (all_dots[angle_index][radius_index - 1].color == color 
-				and all_dots[angle_index][radius_index - 2].color == color
-				and all_dots[angle_index][radius_index - 3].color == color):
-				return true
+	if radius_index > match_count - 1:
+		var is_match = true
+		for i in range(1, match_count):
+			if all_dots[angle_index][radius_index - i] == null or all_dots[angle_index][radius_index - i].color != color:
+				is_match = false
+				break
+		if is_match:
+			return true
 
 	# 环方向匹配（检查相邻的点）
 	var count = 1
@@ -356,7 +355,7 @@ func match_at(angle_index, radius_index, color):
 		
 		count = max(count, left_count + right_count)
 	
-	return count >= 4
+	return count >= match_count
 
 func find_matches():
 	var was_matched = false
@@ -378,7 +377,7 @@ func find_matches():
 				elif dot.color == current_color:
 					count += 1
 					current_matched.append(dot)
-					if count >= 4:
+					if count >= match_count:
 						was_matched = true
 						matched_dots.append_array(current_matched)
 				else:
@@ -409,7 +408,7 @@ func find_matches():
 				elif dot.color == current_color:
 					count += 1
 					current_matched.append(dot)
-					if count >= 4:
+					if count >= match_count:
 						was_matched = true
 						matched_dots.append_array(current_matched)
 				else:
@@ -436,7 +435,7 @@ func find_matches():
 				else:
 					break
 			
-			if wrap_count >= 4:
+			if wrap_count >= match_count:
 				was_matched = true
 				matched_dots.append_array(wrap_matched)
 	
@@ -609,6 +608,7 @@ func select_ring(ring: int):
 	# 重置当前环的旋转状态
 	current_rotation = ring_rotations[ring]
 	target_rotation = current_rotation
+	is_rotating = false  # 确保停止任何正在进行的旋转
 
 func select_previous_ring():
 	if selected_ring >= num_radii - 1:

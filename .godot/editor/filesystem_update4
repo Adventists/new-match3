@@ -1,5 +1,6 @@
 res://default_env.tres
 res://Scenes/Game.tscn
-res://Scenes/disk.gd
 res://Scenes/MainMenu.tscn
 res://Scenes/PuzzleGame.tscn
+res://Scenes/Dots/yellow_dot.tscn
+res://Scenes/Dots/red_dot.tscn

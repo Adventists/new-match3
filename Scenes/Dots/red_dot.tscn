@@ -1,10 +1,10 @@
-[gd_scene load_steps=3 format=2]
+[gd_scene load_steps=3 format=3 uid="uid://bbo1i6vh0rft0"]
 
-[ext_resource path="res://Assets/Dots/red.svg" type="Texture2D" id=1]
-[ext_resource path="res://Scenes/Dot.tscn" type="PackedScene" id=2]
+[ext_resource type="Texture2D" uid="uid://2m5gxsb0h434" path="res://Assets/Dots/red.svg" id="1"]
+[ext_resource type="PackedScene" uid="uid://d0bsiknlebs18" path="res://Scenes/Dot.tscn" id="2"]
 
-[node name="red_dot" instance=ExtResource( 2 )]
+[node name="red_dot" instance=ExtResource("2")]
 color = "red"
 
 [node name="Sprite2D" parent="." index="0"]
-texture = ExtResource( 1 )
+texture = ExtResource("1")

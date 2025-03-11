@@ -1,0 +1,30 @@
+{
+	"levels": [
+		{
+			"level": 1,
+			"description": "将4个红色圆点连在一起",
+			"moves": 10,
+			"dots": [
+				{"angle_index": 0, "radius_index": 2, "color": "red"},
+				{"angle_index": 2, "radius_index": 2, "color": "red"},
+				{"angle_index": 4, "radius_index": 3, "color": "red"},
+				{"angle_index": 6, "radius_index": 2, "color": "red"}
+			]
+		},
+		{
+			"level": 2,
+			"description": "将相同颜色的圆点连在一起",
+			"moves": 15,
+			"dots": [
+				{"angle_index": 0, "radius_index": 1, "color": "blue"},
+				{"angle_index": 2, "radius_index": 1, "color": "blue"},
+				{"angle_index": 4, "radius_index": 1, "color": "blue"},
+				{"angle_index": 6, "radius_index": 1, "color": "blue"},
+				{"angle_index": 1, "radius_index": 3, "color": "red"},
+				{"angle_index": 3, "radius_index": 3, "color": "red"},
+				{"angle_index": 5, "radius_index": 3, "color": "red"},
+				{"angle_index": 7, "radius_index": 3, "color": "red"}
+			]
+		}
+	]
+} 

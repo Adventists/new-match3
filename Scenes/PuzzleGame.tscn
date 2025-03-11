@@ -1,8 +1,11 @@
-[gd_scene load_steps=2 format=3 uid="uid://dnscedcr234hk"]
+[gd_scene load_steps=4 format=3 uid="uid://dnscedcr234hk"]
 
+[ext_resource type="Script" path="res://Scripts/PuzzleGame.gd" id="1_wb8sp"]
+[ext_resource type="PackedScene" uid="uid://riqfmggkqpfd" path="res://Scenes/UI.tscn" id="2_ghunp"]
 [ext_resource type="Script" path="res://Scripts/disk.gd" id="2_setwh"]
 
-[node name="PuzzleGame" type="Node"]
+[node name="PuzzleGame" type="Node2D"]
+script = ExtResource("1_wb8sp")
 
 [node name="ColorRect" type="ColorRect" parent="."]
 z_index = -2
@@ -15,3 +18,5 @@ color = Color(0, 0, 0, 1)
 script = ExtResource("2_setwh")
 num_radii = 4
 spacing = 75.0
+
+[node name="UI" parent="." instance=ExtResource("2_ghunp")]

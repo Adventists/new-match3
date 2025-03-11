@@ -5,7 +5,6 @@ enum {puzzle_mode, endless_mode} #游戏模式
 enum {ring_mode, diameter_mode} # 选择模式
 
 var state
-var game_mode = endless_mode #默认无尽模式
 var remaining_moves = 10 #剩余步数
 var score = 0 #分数
 
@@ -70,9 +69,27 @@ var diameter_move_progress = 0.0
 var diameter_move_speed = 5.0  # 调整这个值可以改变移动速度
 var diameter_dots_movement = {}  # 存储点的起始位置和目标位置
 
-@onready var ui = get_node("/root/Game/UI")
+# 在文件开头添加新的变量
+var current_level = 1
+var level_data = null
+var gray_dot = preload("res://Scenes/Dots/gray_dot.tscn")
+
+@onready var ui = null  # 将在_ready中初始化
+
+const PUZZLE_MODE = 0
+const ENDLESS_MODE = 1
+
+@export var game_mode: int  # 不再设置默认值
 
 func _ready():
+	# 初始化UI引用
+	if get_tree().get_root().has_node("Game/UI"):
+		ui = get_tree().get_root().get_node("Game/UI")
+		game_mode = ENDLESS_MODE  # 在Game场景中设置为无限模式
+	elif get_tree().get_root().has_node("PuzzleGame/UI"):
+		ui = get_tree().get_root().get_node("PuzzleGame/UI")
+		game_mode = PUZZLE_MODE  # 在PuzzleGame场景中设置为解谜模式
+
 	state = move
 	setup_timers()
 	randomize()
@@ -83,12 +100,16 @@ func _ready():
 	for i in range(num_radii):
 		ring_angle_indices[i] = 0
 	all_dots = make_polar_array()
-	spawn_dots()
-	create_ring_highlights()  # 创建环的高亮
-	# 等待一帧确保UI已经准备好
+	
+	# 根据游戏模式初始化
+	if game_mode == PUZZLE_MODE:
+		load_puzzle_level()  # 加载解谜关卡
+	else:
+		initialize_endless_mode()  # 初始化无限模式
+		
+	create_ring_highlights()
 	await get_tree().process_frame
 	update_ui()
-	# 默认选中第一个环
 	select_ring(0)
 
 func _process(delta):
@@ -278,27 +299,65 @@ func make_polar_array():
 			array[angle_index].append(null)  # 初始化为空
 	return array
 
+# 添加加载关卡数据的函数
+func load_level_data():
+	var file = FileAccess.open("res://Resources/puzzle_levels.json", FileAccess.READ)
+	if file:
+		var json = JSON.new()
+		var error = json.parse(file.get_as_text())
+		if error == OK:
+			var data = json.get_data()
+			for level in data["levels"]:
+				if level["level"] == current_level:
+					level_data = level
+					remaining_moves = level["moves"]
+					break
+		file.close()
 
-#生成棋子
-func spawn_dots():
-	for angle_index in num_angles:  # 遍历所有角度
-		for radius_index in num_radii:  # 遍历所有半径
-			if !restricted_fill(Vector2(angle_index, radius_index)):  # 这里用极坐标
-				var rand = floor(randf_range(0, possible_dots.size()))
-				var dot = possible_dots[rand].instantiate()
-				var loops = 0
-
-				# 防止初始生成就有匹配
-				while (match_at(angle_index, radius_index, dot.color) and loops < 100):
-					rand = floor(randf_range(0, possible_dots.size()))
-					loops += 1
-					dot = possible_dots[rand].instantiate()
-
+# 修改spawn_dots函数
+func spawn_puzzle_dots():
+	if level_data == null:
+		push_error("没有找到关卡数据！")
+		return
+		
+	# 先用灰色点填充所有位置
+	for angle_index in num_angles:
+		for radius_index in num_radii:
+			if !restricted_fill(Vector2(angle_index, radius_index)):
+				var dot = gray_dot.instantiate()
 				add_child(dot)
-				# 初始化时设置正确的位置，不应用旋转
 				dot.position = grid_to_pixel(angle_index, radius_index, false)
 				all_dots[angle_index][radius_index] = dot
-
+	
+	# 放置关卡指定的彩色点
+	for dot_data in level_data["dots"]:
+		var angle_index = dot_data["angle_index"]
+		var radius_index = dot_data["radius_index"]
+		var color = dot_data["color"]
+		
+		# 移除该位置的灰色点
+		if all_dots[angle_index][radius_index] != null:
+			all_dots[angle_index][radius_index].queue_free()
+		
+		# 根据颜色选择正确的场景
+		var dot_scene = null
+		match color:
+			"red":
+				dot_scene = possible_dots[3]  # 红色
+			"blue":
+				dot_scene = possible_dots[0]  # 蓝色
+			"green":
+				dot_scene = possible_dots[1]  # 绿色
+			"pink":
+				dot_scene = possible_dots[2]  # 粉色
+			"yellow":
+				dot_scene = possible_dots[4]  # 黄色
+		
+		if dot_scene:
+			var dot = dot_scene.instantiate()
+			add_child(dot)
+			dot.position = grid_to_pixel(angle_index, radius_index, false)
+			all_dots[angle_index][radius_index] = dot
 
 func restricted_fill(place):
 	if is_in_array(empty_spaces, place):
@@ -311,62 +370,78 @@ func is_in_array(array, item):
 			return true
 	return false
 
-func match_at(angle_index, radius_index, color):
-	# 半径方向匹配（检查内圈的点）
-	if radius_index > match_count - 1:
-		var is_match = true
-		for i in range(1, match_count):
-			if all_dots[angle_index][radius_index - i] == null or all_dots[angle_index][radius_index - i].color != color:
-				is_match = false
-				break
-		if is_match:
-			return true
-
-	# 环方向匹配（检查相邻的点）
-	var count = 1
-	var i = angle_index - 1
-	# 向左检查连续相同颜色的点
-	while i >= 0:
-		if all_dots[i][radius_index] != null and all_dots[i][radius_index].color == color:
-			count += 1
-			i -= 1
+func check_match(angle_index: int, radius_index: int) -> bool:
+	var dot = all_dots[angle_index][radius_index]
+	if dot == null:
+		return false
+		
+	# 获取当前点的颜色
+	var current_color = dot.get_color()
+	
+	# 如果是灰色点，直接返回false
+	if current_color == Color(0.5, 0.5, 0.5, 1.0):  # 灰色
+		return false
+	
+	# 检查水平方向
+	var horizontal_dots = []
+	var i = angle_index
+	while i >= 0 and all_dots[i][radius_index] != null:
+		var check_dot = all_dots[i][radius_index]
+		if check_dot.get_color() == current_color and check_dot.get_color() != Color(0.5, 0.5, 0.5, 1.0):
+			horizontal_dots.append(check_dot)
 		else:
 			break
-	
+		i -= 1
+		
 	i = angle_index + 1
-	# 向右检查连续相同颜色的点
-	while i < num_angles:
-		if all_dots[i][radius_index] != null and all_dots[i][radius_index].color == color:
-			count += 1
-			i += 1
+	while i < num_angles and all_dots[i][radius_index] != null:
+		var check_dot = all_dots[i][radius_index]
+		if check_dot.get_color() == current_color and check_dot.get_color() != Color(0.5, 0.5, 0.5, 1.0):
+			horizontal_dots.append(check_dot)
 		else:
 			break
-	
-	# 处理环形边界情况
-	if angle_index == 0 or angle_index == num_angles - 1:
-		var left_count = 0
-		var right_count = 0
-		i = num_angles - 1
-		# 从最右边检查到左边
-		while i >= 0:
-			if all_dots[i][radius_index] != null and all_dots[i][radius_index].color == color:
-				left_count += 1
-				i -= 1
-			else:
-				break
+		i += 1
 		
-		i = 0
-		# 从最左边检查到右边
-		while i < num_angles:
-			if all_dots[i][radius_index] != null and all_dots[i][radius_index].color == color:
-				right_count += 1
-				i += 1
-			else:
-				break
+	# 检查垂直方向
+	var vertical_dots = []
+	i = radius_index
+	while i >= 0 and all_dots[angle_index][i] != null:
+		var check_dot = all_dots[angle_index][i]
+		if check_dot.get_color() == current_color and check_dot.get_color() != Color(0.5, 0.5, 0.5, 1.0):
+			vertical_dots.append(check_dot)
+		else:
+			break
+		i -= 1
 		
-		count = max(count, left_count + right_count)
-	
-	return count >= match_count
+	i = radius_index + 1
+	while i < num_radii and all_dots[angle_index][i] != null:
+		var check_dot = all_dots[angle_index][i]
+		if check_dot.get_color() == current_color and check_dot.get_color() != Color(0.5, 0.5, 0.5, 1.0):
+			vertical_dots.append(check_dot)
+		else:
+			break
+		i += 1
+		
+	# 如果水平或垂直方向有3个或以上相同颜色的点，则消除
+	if horizontal_dots.size() >= 3 or vertical_dots.size() >= 3:
+		# 合并所有要消除的点
+		var dots_to_remove = []
+		dots_to_remove.append_array(horizontal_dots)
+		dots_to_remove.append_array(vertical_dots)
+		
+		# 移除重复的点
+		var unique_dots = []
+		for d in dots_to_remove:
+			if not unique_dots.has(d):
+				unique_dots.append(d)
+		
+		# 消除所有点
+		for d in unique_dots:
+			d.matched = true  # 标记为匹配
+			d.dim()  # 使点变暗
+		return true
+		
+	return false
 
 func find_matches():
 	var was_matched = false
@@ -378,9 +453,16 @@ func find_matches():
 		var count = 0
 		var current_matched = []
 		
-		for radius_index in range(num_radii - 1, -1, -1):  # 从外向内检查
+		for radius_index in range(num_radii - 1, -1, -1):
 			if all_dots[angle_index][radius_index] != null:
 				var dot = all_dots[angle_index][radius_index]
+				# 跳过灰色点
+				if dot.color == "gray":
+					current_color = null
+					count = 0
+					current_matched.clear()
+					continue
+					
 				if current_color == null:
 					current_color = dot.color
 					count = 1
@@ -408,6 +490,13 @@ func find_matches():
 		for angle_index in num_angles:
 			if all_dots[angle_index][radius_index] != null:
 				var dot = all_dots[angle_index][radius_index]
+				# 跳过灰色点
+				if dot.color == "gray":
+					current_color = null
+					count = 0
+					current_matched.clear()
+					continue
+					
 				if angle_index == 0:
 					first_dot = dot
 					first_color = dot.color
@@ -433,14 +522,14 @@ func find_matches():
 			var wrap_matched = []
 			# 从末尾向前检查
 			for i in range(num_angles - 1, -1, -1):
-				if all_dots[i][radius_index] != null and all_dots[i][radius_index].color == first_color:
+				if all_dots[i][radius_index] != null and all_dots[i][radius_index].color == first_color and all_dots[i][radius_index].color != "gray":
 					wrap_count += 1
 					wrap_matched.append(all_dots[i][radius_index])
 				else:
 					break
 			# 从开头向后检查
 			for i in range(0, num_angles):
-				if all_dots[i][radius_index] != null and all_dots[i][radius_index].color == first_color:
+				if all_dots[i][radius_index] != null and all_dots[i][radius_index].color == first_color and all_dots[i][radius_index].color != "gray":
 					wrap_count += 1
 					wrap_matched.append(all_dots[i][radius_index])
 				else:
@@ -458,10 +547,17 @@ func find_matches():
 	
 	if was_matched:
 		destroy_timer.start()
+		if game_mode == puzzle_mode:
+			check_level_complete()
 	
 	return was_matched
 
 func collapse_columns():
+	# 在解谜模式中，不需要下落和填充新的点
+	if game_mode == puzzle_mode:
+		state = move
+		return
+	
 	var moved = false
 	
 	# 从外圈向内圈遍历
@@ -485,6 +581,11 @@ func collapse_columns():
 		refill_timer.start()
 
 func refill_columns():
+	# 在解谜模式中，不需要填充新的点
+	if game_mode == puzzle_mode:
+		state = move
+		return
+	
 	var refilled = false
 	
 	for angle_index in num_angles:
@@ -494,7 +595,7 @@ func refill_columns():
 				var dot = possible_dots[rand].instantiate()
 				var loops = 0
 				
-				while (match_at(angle_index, radius_index, dot.color) and loops < 100):
+				while (check_match(angle_index, radius_index) and loops < 100):
 					rand = floor(randf_range(0, possible_dots.size()))
 					loops += 1
 					dot = possible_dots[rand].instantiate()
@@ -945,3 +1046,51 @@ func destroy_matches():
 		collapse_timer.start()
 	else:
 		state = move
+
+# 添加检查关卡完成的函数
+func check_level_complete():
+	# 检查所有指定颜色的点是否都被消除
+	var level_complete = true
+	for angle_index in num_angles:
+		for radius_index in num_radii:
+			var dot = all_dots[angle_index][radius_index]
+			if dot != null and dot.color != "gray" and not dot.matched:
+				level_complete = false
+				break
+	
+	if level_complete:
+		# 显示关卡完成UI
+		if ui:
+			ui.show_level_complete()
+		# 解锁下一关
+		current_level += 1
+		# 可以在这里添加保存进度的代码
+
+# 添加回spawn_dots函数
+func spawn_dots():
+	for angle_index in num_angles:  # 遍历所有角度
+		for radius_index in num_radii:  # 遍历所有半径
+			if !restricted_fill(Vector2(angle_index, radius_index)):  # 这里用极坐标
+				var rand = floor(randf_range(0, possible_dots.size()))
+				var dot = possible_dots[rand].instantiate()
+				var loops = 0
+
+				# 防止初始生成就有匹配
+				while (check_match(angle_index, radius_index) and loops < 100):
+					rand = floor(randf_range(0, possible_dots.size()))
+					loops += 1
+					dot = possible_dots[rand].instantiate()
+
+				add_child(dot)
+				dot.position = grid_to_pixel(angle_index, radius_index, false)
+				all_dots[angle_index][radius_index] = dot
+
+func load_puzzle_level():
+	# 加载关卡数据
+	load_level_data()
+	# 生成解谜模式的点阵
+	spawn_puzzle_dots()
+
+func initialize_endless_mode():
+	# 初始化无限模式
+	spawn_dots()

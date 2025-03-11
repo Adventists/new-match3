@@ -1,19 +1,24 @@
-extends Control
+extends CanvasLayer
 
-@onready var moves_label = $TopBar/MovesLabel
-@onready var score_label = $TopBar/ScoreLabel
+@onready var moves_label = $MovesLabel
+@onready var score_label = $ScoreLabel
+@onready var level_complete_panel = $LevelCompletePanel
+@onready var next_level_button = $LevelCompletePanel/NextLevelButton
 
 func _ready():
-	# 确保标签有初始文本
-	if moves_label:
-		moves_label.text = "剩余步数: 10"
-	if score_label:
-		score_label.text = "分数: 0"
+	level_complete_panel.hide()
+	next_level_button.pressed.connect(_on_next_level_pressed)
 
 func update_moves(moves: int):
-	if moves_label:
-		moves_label.text = "剩余步数: %d" % moves
+	moves_label.text = "Moves: %d" % moves
 
 func update_score(score: int):
-	if score_label:
-		score_label.text = "分数: %d" % score 
+	score_label.text = "Score: %d" % score
+
+func show_level_complete():
+	level_complete_panel.show()
+
+func _on_next_level_pressed():
+	level_complete_panel.hide()
+	# 重新加载当前场景以开始新关卡
+	get_tree().reload_current_scene() 

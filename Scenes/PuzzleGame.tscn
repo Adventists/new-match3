@@ -1,8 +1,8 @@
 [gd_scene load_steps=4 format=3 uid="uid://dnscedcr234hk"]
 
 [ext_resource type="Script" path="res://Scripts/PuzzleGame.gd" id="1_wb8sp"]
-[ext_resource type="PackedScene" uid="uid://riqfmggkqpfd" path="res://Scenes/UI.tscn" id="2_ghunp"]
 [ext_resource type="Script" path="res://Scripts/disk.gd" id="2_setwh"]
+[ext_resource type="PackedScene" uid="uid://1c8j1ethack" path="res://Scenes/PuzzleUI.tscn" id="3_i1rdf"]
 
 [node name="PuzzleGame" type="Node2D"]
 script = ExtResource("1_wb8sp")
@@ -19,4 +19,4 @@ script = ExtResource("2_setwh")
 num_radii = 4
 spacing = 75.0
 
-[node name="UI" parent="." instance=ExtResource("2_ghunp")]
+[node name="PuzzleUi" parent="." instance=ExtResource("3_i1rdf")]

@@ -1,9 +1,10 @@
 res://default_env.tres
+res://Scenes/PuzzleGame.tscn
+res://Scenes/PuzzleUI.tscn
 res://Scenes/Game.tscn
 res://Scenes/MainMenu.tscn
-res://Scenes/PuzzleGame.tscn
 res://Scenes/Dots/yellow_dot.tscn
 res://Scenes/Dots/gray_dot.tscn
-res://Scripts/disk.gd
-res://Resources/puzzle_levels.json
-res://Scripts/PuzzleGame.gd
+res://Scripts/PuzzleUI.gd
+res://Scripts/UI.gd
+res://Scripts/Grid.gd

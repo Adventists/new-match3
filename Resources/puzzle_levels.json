@@ -5,10 +5,10 @@
 			"description": "将4个红色圆点连在一起",
 			"moves": 10,
 			"dots": [
-				{"angle_index": 0, "radius_index": 2, "color": "red"},
-				{"angle_index": 2, "radius_index": 2, "color": "red"},
-				{"angle_index": 4, "radius_index": 3, "color": "red"},
-				{"angle_index": 6, "radius_index": 2, "color": "red"}
+				{"angle_index": 7, "radius_index": 0, "color": "red"},
+				{"angle_index": 5, "radius_index": 1, "color": "red"},
+				{"angle_index": 7, "radius_index": 2, "color": "red"},
+				{"angle_index": 7, "radius_index": 3, "color": "red"}
 			]
 		},
 		{

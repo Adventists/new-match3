@@ -70,7 +70,7 @@ var diameter_move_speed = 5.0  # 调整这个值可以改变移动速度
 var diameter_dots_movement = {}  # 存储点的起始位置和目标位置
 
 # 在文件开头添加新的变量
-var current_level = 1
+var current_level = 0  # 当前等级
 var level_data = null
 var gray_dot = preload("res://Scenes/Dots/gray_dot.tscn")
 
@@ -81,13 +81,21 @@ const ENDLESS_MODE = 1
 
 @export var game_mode: int  # 不再设置默认值
 
+# 升级系统相关变量
+var level_thresholds = [50, 150, 300, 500, 750, 1050, 1400, 1800, 2250, 2750]  # 每级所需分数
+var base_moves = 10  # 基础移动步数
+var is_frenzy = false  # 是否处于狂热状态
+var frenzy_timer = Timer.new()  # 狂热状态计时器
+var frenzy_duration = 30.0  # 狂热状态持续时间（秒）
+var score_multiplier = 1  # 分数倍率
+
 func _ready():
 	# 初始化UI引用
-	if get_tree().get_root().has_node("Game/UI"):
-		ui = get_tree().get_root().get_node("Game/UI")
+	if get_tree().get_root().has_node("Game/EndlessUI"):
+		ui = get_tree().get_root().get_node("Game/EndlessUI")
 		game_mode = ENDLESS_MODE  # 在Game场景中设置为无限模式
-	elif get_tree().get_root().has_node("PuzzleGame/PuzzleUI"):  # 修改这里
-		ui = get_tree().get_root().get_node("PuzzleGame/PuzzleUI")  # 修改这里
+	elif get_tree().get_root().has_node("PuzzleGame/PuzzleUI"):
+		ui = get_tree().get_root().get_node("PuzzleGame/PuzzleUI")
 		game_mode = PUZZLE_MODE  # 在PuzzleGame场景中设置为解谜模式
 
 	state = move
@@ -111,6 +119,15 @@ func _ready():
 	await get_tree().process_frame
 	update_ui()
 	select_ring(0)
+	
+	# 添加狂热状态计时器
+	frenzy_timer.one_shot = true
+	frenzy_timer.wait_time = frenzy_duration
+	frenzy_timer.connect("timeout", Callable(self, "_on_frenzy_timeout"))
+	add_child(frenzy_timer)
+	
+	if game_mode == ENDLESS_MODE:
+		reset_moves()  # 重置移动步数
 
 func _process(delta):
 	if is_rotating:
@@ -155,6 +172,10 @@ func _process(delta):
 				var start_pos = diameter_dots_movement[dot]["start"]
 				var end_pos = diameter_dots_movement[dot]["end"]
 				dot.position = start_pos.lerp(end_pos, diameter_move_progress)
+
+	# 更新狂热状态UI
+	if is_frenzy and ui:
+		ui.update_frenzy_timer(frenzy_timer.time_left)
 
 func _input(event):
 	if event is InputEventKey:
@@ -221,16 +242,27 @@ func rotate_clockwise():
 	if state != move or is_rotating or selected_ring == -1:
 		return
 		
+	if game_mode == ENDLESS_MODE and !is_frenzy and remaining_moves <= 0:
+		if ui:
+			ui.show_game_over()  # 显示游戏结束
+		return
+		
 	state = wait
 	is_rotating = true
 	current_angle_index = ring_angle_indices[selected_ring]
 	target_angle_index = (current_angle_index + 1) % num_angles
 	rotation_progress = 0.0
-	remaining_moves -= 1
+	if !is_frenzy:  # 只在非狂热状态下消耗步数
+		remaining_moves -= 1
 	update_ui()
 
 func rotate_counter_clockwise():
 	if state != move or is_rotating or selected_ring == -1:
+		return
+		
+	if game_mode == ENDLESS_MODE and !is_frenzy and remaining_moves <= 0:
+		if ui:
+			ui.show_game_over()  # 显示游戏结束
 		return
 		
 	state = wait
@@ -238,7 +270,8 @@ func rotate_counter_clockwise():
 	current_angle_index = ring_angle_indices[selected_ring]
 	target_angle_index = (current_angle_index - 1 + num_angles) % num_angles
 	rotation_progress = 0.0
-	remaining_moves -= 1
+	if !is_frenzy:  # 只在非狂热状态下消耗步数
+		remaining_moves -= 1
 	update_ui()
 
 func update_all_dots_positions(force_final_position: bool = false):
@@ -493,7 +526,8 @@ func check_match(angle_index: int, radius_index: int) -> bool:
 	
 	# 更新分数
 	if was_matched:
-		score += matched_dots.size()
+		score += matched_dots.size() * score_multiplier
+		check_level_up()  # 检查是否可以升级
 		
 	return was_matched
 
@@ -594,6 +628,8 @@ func update_ui():
 		ui.update_score(score)
 		if game_mode == PUZZLE_MODE:
 			ui.update_level(current_level)
+		elif game_mode == ENDLESS_MODE:
+			ui.update_endless_level(current_level, score, level_thresholds[current_level + 1] if current_level + 1 < level_thresholds.size() else -1)
 
 func create_ring_highlights():
 	# 为每个环创建高亮节点
@@ -746,8 +782,6 @@ func select_diameter(diameter_index: int):
 	
 	selected_diameter = diameter_index
 	update_diameter_highlights()
-	remaining_moves -= 1
-	update_ui()
 
 func select_previous_diameter():
 	if selected_diameter <= 0:
@@ -1056,3 +1090,38 @@ func load_puzzle_level():
 func initialize_endless_mode():
 	# 初始化无限模式
 	spawn_dots()
+
+func reset_moves():
+	remaining_moves = base_moves
+
+func check_level_up():
+	if game_mode != ENDLESS_MODE:
+		return
+		
+	var next_level = current_level + 1
+	if next_level >= level_thresholds.size():
+		return
+		
+	if score >= level_thresholds[next_level]:
+		current_level = next_level
+		reset_moves()  # 升级时重置步数
+		
+		# 检查是否需要进入狂热状态（从2级开始，每5级触发一次）
+		if current_level >= 2 and current_level % 5 == 0:
+			start_frenzy_mode()
+		
+		if ui:
+			ui.show_level_up(current_level)  # 显示升级提示
+
+func start_frenzy_mode():
+	is_frenzy = true
+	score_multiplier = 2
+	frenzy_timer.start()
+	if ui:
+		ui.update_frenzy_state(true, frenzy_timer.time_left)
+
+func _on_frenzy_timeout():
+	is_frenzy = false
+	score_multiplier = 1
+	if ui:
+		ui.update_frenzy_state(false, 0)

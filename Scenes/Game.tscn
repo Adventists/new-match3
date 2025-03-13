@@ -1,7 +1,7 @@
 [gd_scene load_steps=3 format=3 uid="uid://ynpouyser6kn"]
 
 [ext_resource type="Script" path="res://Scripts/disk.gd" id="2_setwh"]
-[ext_resource type="PackedScene" uid="uid://riqfmggkqpfd" path="res://Scenes/UI.tscn" id="3_ui"]
+[ext_resource type="PackedScene" uid="uid://riqfmggkqpfd" path="res://Scenes/EndlessUI.tscn" id="3_ui"]
 
 [node name="Game" type="Node"]
 
@@ -15,7 +15,7 @@ color = Color(0, 0, 0, 1)
 [node name="Disk" type="Node2D" parent="."]
 script = ExtResource("2_setwh")
 num_radii = 4
+match_count = 3
 spacing = 75.0
 
-[node name="UI" parent="." instance=ExtResource("3_ui")]
-unique_name_in_owner = true
+[node name="EndlessUI" parent="." instance=ExtResource("3_ui")]

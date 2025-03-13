@@ -2,5 +2,7 @@ Button
 Label
 VBoxContainer
 Panel
+ProgressBar
+Control
 CanvasLayer
 Node2D

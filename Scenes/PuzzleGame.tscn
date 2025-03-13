@@ -19,4 +19,4 @@ script = ExtResource("2_setwh")
 num_radii = 4
 spacing = 75.0
 
-[node name="PuzzleUi" parent="." instance=ExtResource("3_i1rdf")]
+[node name="PuzzleUI" parent="." instance=ExtResource("3_i1rdf")]

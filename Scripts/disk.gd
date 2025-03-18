@@ -1281,6 +1281,11 @@ func check_level_complete():
 				break
 	
 	if level_complete:
+		# 更新Global中的关卡号
+		var global_node = get_tree().get_root().get_node("Global")
+		if global_node and global_node.has_method("set_current_puzzle_level"):
+			global_node.set_current_puzzle_level(current_level + 1)
+		
 		# 显示关卡完成UI
 		if ui:
 			ui.show_level_complete()

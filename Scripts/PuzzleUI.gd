@@ -103,10 +103,11 @@ func _on_next_level_button_pressed():
 	
 	# 如果还有下一关，加载下一关；否则返回主菜单
 	if next_level <= max_level:
-		# 使用全局变量存储下一关的关卡号
+		# 更新Global中的关卡号
 		var global = get_node("/root/Global")
 		if global:
-			global.current_puzzle_level = next_level
+			global.set_current_puzzle_level(next_level)
+			print("Setting next level to: ", next_level)
 		# 重新加载场景以开始新关卡
 		get_tree().reload_current_scene()
 	else:

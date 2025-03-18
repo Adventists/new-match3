@@ -4,12 +4,20 @@ enum {wait, move} #state 变量用于存储当前游戏的状态，可能用于�
 enum {puzzle_mode, endless_mode} #游戏模式
 enum {ring_mode, diameter_mode} # 选择模式
 
+# 交互系统说明：
+# 1. 使用鼠标点击选择环/直径
+# 2. 环模式下，可以拖动环旋转，松开时自动吸附到最近的整数索引位置
+# 3. 直径模式下，点击直径两端的任意一端移动直径上的点
+# 4. TAB键用于切换环模式和直径模式
+# 5. 只有在环的位置确实发生变化时才会消耗步数
+# 6. 在拖动结束后检测消除
+
 var state
 var remaining_moves = 10 #剩余步数
 var score = 0 #分数
 
 @export var num_angles: int = 8  # 角度切分数量，例如 8 份
-@export var num_radii: int = 5   # 圆盘的层数（半径方向），改为5圈
+@export var num_radii: int = 4   # 圆盘的层数（半径方向），改为4圈
 @export var match_count: int = 4  # 需要多少个相同颜色的点才会消除
 var center = Vector2(400, 400)   # 圆盘起始位置。圆盘的中心点（假设窗口大小 800x800）
 
@@ -42,11 +50,6 @@ var last_place = Vector2(0,0)
 var last_direction = Vector2(0,0)
 var move_checked = false
 
-#触摸控制，记录手势输入（适用于移动设备）
-var first_touch = Vector2(0,0)
-var final_touch = Vector2(0,0)
-var controlling = false
-
 # 旋转相关变量
 var current_angle_index = 0  # 当前角度索引
 var target_angle_index = 0   # 目标角度索引
@@ -63,6 +66,21 @@ var ring_angle_indices = []  # 存储每个环的角度索引
 var current_mode = ring_mode  # 当前选择模式
 var selected_diameter = -1  # 当前选中的直径（-1表示未选中）
 
+# 鼠标交互相关变量
+var is_dragging = false             # 是否正在拖动
+var drag_start_position = Vector2() # 拖动起始位置
+var drag_start_angle = 0.0          # 拖动起始角度
+var drag_current_angle = 0.0        # 当前拖动角度
+var original_angle_index = 0        # 拖动开始时的角度索引
+var min_drag_distance = 10.0        # 最小拖动距离(像素)，小于此距离不视为拖动
+var is_diameter_dragging = false    # 是否正在拖动直径
+var drag_rotation = 0.0             # 当前拖动的旋转角度（弧度）
+var drag_start_rotation = 0.0       # 拖动开始时的旋转角度
+var snapping_to_index = false       # 是否正在吸附到整数索引
+var snap_target_angle = 0.0         # 吸附目标角度
+var snap_progress = 0.0             # 吸附进度
+var snap_speed = 10.0               # 吸附速度
+
 # 在文件开头的变量声明部分添加新的变量
 var is_diameter_moving = false
 var diameter_move_progress = 0.0
@@ -70,8 +88,8 @@ var diameter_move_speed = 5.0  # 调整这个值可以改变移动速度
 var diameter_dots_movement = {}  # 存储点的起始位置和目标位置
 
 # 在文件开头添加新的变量
-var current_level = 0  # 当前等级
-var level_data = null
+var current_level = 1  # 当前关卡
+var level_data = null  # 关卡数据
 var gray_dot = preload("res://Scenes/Dots/gray_dot.tscn")
 
 @onready var ui = null  # 将在_ready中初始化
@@ -81,13 +99,31 @@ const ENDLESS_MODE = 1
 
 @export var game_mode: int  # 不再设置默认值
 
-# 升级系统相关变量
-var level_thresholds = [50, 150, 300, 500, 750, 1050, 1400, 1800, 2250, 2750]  # 每级所需分数
-var base_moves = 10  # 基础移动步数
-var is_frenzy = false  # 是否处于狂热状态
-var frenzy_timer = Timer.new()  # 狂热状态计时器
-var frenzy_duration = 30.0  # 狂热状态持续时间（秒）
-var score_multiplier = 1  # 分数倍率
+# 无限模式关卡设置
+var level_targets = [500, 1000, 2000, 3000, 5000, 7500, 10000]  # 每关目标分数
+var level_moves = [15, 18, 20, 22, 25, 28, 30]  # 每关可用步数
+
+# buff系统
+var active_buffs = []
+var available_buffs = [
+	# 消除规则类
+	{"id": 1, "name": "同色四连消除", "description": "同色四连消除获得额外分数"},
+	{"id": 2, "name": "十字消除", "description": "消除时同时消除十字交叉点"},
+	{"id": 3, "name": "环形消除", "description": "消除时可以消除整个圆环上同色的点"},
+	{"id": 4, "name": "连锁反应", "description": "消除后相邻同色点也会消除"},
+	
+	# 得分提升类
+	{"id": 5, "name": "同色消除加成", "description": "相同颜色消除分数+50%"},
+	{"id": 6, "name": "连击加成", "description": "连续消除提供递增分数"},
+	{"id": 7, "name": "完美消除", "description": "一次消除>=5个点额外加分"},
+	{"id": 8, "name": "环形奖励", "description": "整圆环颜色一致时额外得分"},
+	
+	# 特殊效果类
+	{"id": 9, "name": "额外步数", "description": "每关开始时+2步"},
+	{"id": 10, "name": "重置机会", "description": "每关有1次重置圆盘机会"},
+	{"id": 11, "name": "预览效果", "description": "显示下一次旋转的效果"},
+	{"id": 12, "name": "保护罩", "description": "失败时有一次继续机会"}
+]
 
 func _ready():
 	# 初始化UI引用
@@ -109,6 +145,10 @@ func _ready():
 		ring_angle_indices[i] = 0
 	all_dots = make_polar_array()
 	
+	# 重置鼠标操作相关变量
+	is_dragging = false
+	is_diameter_dragging = false
+	
 	# 根据游戏模式初始化
 	if game_mode == PUZZLE_MODE:
 		load_puzzle_level()  # 加载解谜关卡
@@ -119,15 +159,6 @@ func _ready():
 	await get_tree().process_frame
 	update_ui()
 	select_ring(0)
-	
-	# 添加狂热状态计时器
-	frenzy_timer.one_shot = true
-	frenzy_timer.wait_time = frenzy_duration
-	frenzy_timer.connect("timeout", Callable(self, "_on_frenzy_timeout"))
-	add_child(frenzy_timer)
-	
-	if game_mode == ENDLESS_MODE:
-		reset_moves()  # 重置移动步数
 
 func _process(delta):
 	if is_rotating:
@@ -173,144 +204,244 @@ func _process(delta):
 				var end_pos = diameter_dots_movement[dot]["end"]
 				dot.position = start_pos.lerp(end_pos, diameter_move_progress)
 
-	# 更新狂热状态UI
-	if is_frenzy and ui:
-		ui.update_frenzy_timer(frenzy_timer.time_left)
+	if snapping_to_index:
+		snap_progress += delta * snap_speed
+		if snap_progress >= 1.0:
+			# 吸附完成
+			snap_progress = 1.0
+			snapping_to_index = false
+			
+			# 更新环的角度索引
+			var angle_step = 2 * PI / num_angles
+			var target_angle_normalized = fmod(snap_target_angle, 2 * PI)
+			if target_angle_normalized < 0:
+				target_angle_normalized += 2 * PI
+				
+			var target_index = int(round(target_angle_normalized / angle_step)) % int(num_angles)
+			
+			ring_angle_indices[selected_ring] = target_index
+			
+			# 更新数据结构中点的实际位置
+			update_all_dots_positions()
+			
+			# 检查是否有消除
+			check_all_matches()
+			
+			# 更新游戏状态
+			if target_index != original_angle_index:
+				if !destroy_timer.is_stopped():
+					state = wait
+				else:
+					state = move
+			else:
+				state = move
+		
+		# 更新旋转角度
+		drag_rotation = lerp_angle(drag_rotation, snap_target_angle, snap_progress)
+		update_drag_visuals()
 
 func _input(event):
+	if state == wait or is_rotating or is_diameter_moving:
+		return
+		
 	if event is InputEventKey:
-		if event.pressed:
-			if event.keycode == KEY_TAB:  # 使用Tab键切换模式
-				toggle_selection_mode()
-			elif event.keycode == KEY_LEFT:
-				if current_mode == ring_mode:
-					rotate_counter_clockwise()
-				else:
-					move_diameter_counter_clockwise()
-			elif event.keycode == KEY_RIGHT:
-				if current_mode == ring_mode:
-					rotate_clockwise()
-				else:
-					move_diameter_clockwise()
-			elif event.keycode == KEY_UP:
-				if current_mode == ring_mode:
-					select_previous_ring()
-				else:
-					select_previous_diameter()
-			elif event.keycode == KEY_DOWN:
-				if current_mode == ring_mode:
-					select_next_ring()
-				else:
-					select_next_diameter()
+		if event.pressed and event.keycode == KEY_TAB:  # 使用Tab键切换模式
+			toggle_selection_mode()
+	
 	elif event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if event.pressed:
-				first_touch = event.position
-				controlling = true
-				# 检查是否点击了某个环
-				var clicked_ring = get_ring_at_position(event.position)
-				if clicked_ring != -1:
-					select_ring(clicked_ring)
-			elif controlling:
-				final_touch = event.position
-				controlling = false
-				handle_rotation_gesture()
-
-func handle_rotation_gesture():
-	var _gesture = final_touch - first_touch  # 添加下划线前缀
-	var center_to_first = first_touch - center
-	var center_to_final = final_touch - center
-	
-	# 计算旋转方向
-	var angle1 = atan2(center_to_first.y, center_to_first.x)
-	var _angle2 = atan2(center_to_final.y, center_to_final.x)  # 添加下划线前缀
-	var rotation_direction = _angle2 - angle1
-	
-	# 处理角度跨越360度的情况
-	if rotation_direction > PI:
-		rotation_direction -= 2 * PI
-	elif rotation_direction < -PI:
-		rotation_direction += 2 * PI
-	
-	# 根据旋转方向决定是顺时针还是逆时针旋转
-	if rotation_direction > 0:
-		rotate_clockwise()
-	else:
-		rotate_counter_clockwise()
-
-func rotate_clockwise():
-	if state != move or is_rotating or selected_ring == -1:
-		return
-		
-	if game_mode == ENDLESS_MODE and !is_frenzy and remaining_moves <= 0:
-		if ui:
-			ui.show_game_over()  # 显示游戏结束
-		return
-		
-	state = wait
-	is_rotating = true
-	current_angle_index = ring_angle_indices[selected_ring]
-	target_angle_index = (current_angle_index + 1) % num_angles
-	rotation_progress = 0.0
-	if !is_frenzy:  # 只在非狂热状态下消耗步数
-		remaining_moves -= 1
-	update_ui()
-
-func rotate_counter_clockwise():
-	if state != move or is_rotating or selected_ring == -1:
-		return
-		
-	if game_mode == ENDLESS_MODE and !is_frenzy and remaining_moves <= 0:
-		if ui:
-			ui.show_game_over()  # 显示游戏结束
-		return
-		
-	state = wait
-	is_rotating = true
-	current_angle_index = ring_angle_indices[selected_ring]
-	target_angle_index = (current_angle_index - 1 + num_angles) % num_angles
-	rotation_progress = 0.0
-	if !is_frenzy:  # 只在非狂热状态下消耗步数
-		remaining_moves -= 1
-	update_ui()
-
-func update_all_dots_positions(force_final_position: bool = false):
-	for angle_index in num_angles:
-		for radius_index in num_radii:
-			if all_dots[angle_index][radius_index] != null:
-				var dot = all_dots[angle_index][radius_index]
-				var angle_step = 2 * PI / num_angles
-				
-				# 计算实际角度
-				var actual_angle = angle_index * angle_step
+				# 鼠标按下，只选择环而不开始拖动
 				if current_mode == ring_mode:
-					if is_rotating and radius_index == selected_ring and not force_final_position:
-						# 在动画过程中，使用 rotation_progress 插值
-						var start_angle = (angle_index + current_angle_index) * angle_step
-						var end_angle = (angle_index + target_angle_index) * angle_step
-						actual_angle = lerp_angle(start_angle, end_angle, ease(rotation_progress, 0.5))
-					else:
-						# 使用精确的索引位置
-						var final_index = (angle_index + ring_angle_indices[radius_index]) % num_angles
-						actual_angle = final_index * angle_step
-				
-				var radius = base_radius + (radius_index * spacing)
-				var x = cos(actual_angle) * radius
-				var y = sin(actual_angle) * radius
-				dot.position = Vector2(x, y) + center
-				
-				# 更新高亮环的旋转
-				if current_mode == ring_mode and radius_index == selected_ring:
-					if is_rotating and not force_final_position:
-						var start_angle = current_angle_index * angle_step
-						var end_angle = target_angle_index * angle_step
-						ring_highlights[radius_index].rotation = lerp_angle(start_angle, end_angle, ease(rotation_progress, 0.5))
-					else:
-						ring_highlights[radius_index].rotation = ring_angle_indices[radius_index] * angle_step
+					var clicked_ring = get_ring_at_position(event.position)
+					print("input方法！")
+					if clicked_ring != -1:
+						select_ring(clicked_ring)
+						print("input方法调用了select—ring了！")
+						# 不要立即调用start_ring_drag - 等待鼠标移动
+				else:  # diameter_mode
+					var clicked_diameter = get_diameter_at_position(event.position)
+					if clicked_diameter != -1:
+						select_diameter(clicked_diameter)
+						
+						# 计算点击点与直径的关系，确定移动方向
+						var diameter_angle = clicked_diameter * (2 * PI / num_angles)
+						var direction = (event.position - center).normalized()
+						var click_angle = atan2(direction.y, direction.x)
+						if click_angle < 0:
+							click_angle += 2 * PI
+							
+						# 计算角度差来确定拖动点在直径的哪一端
+						var angle_diff = angle_difference(click_angle, diameter_angle)
+						
+						if abs(angle_diff) < PI/2: # 点在直径的右侧
+							move_diameter_clockwise()
+						else: # 点在直径的左侧
+							move_diameter_counter_clockwise()
+			else:
+				# 鼠标释放
+				if is_dragging and current_mode == ring_mode:
+					end_ring_drag(event.position)
+					#for i in range(num_radii):
+						#ring_angle_indices[i] = 0
+					#update_all_dots_positions()
+					#check_all_matches()
+					print("input方法调用了end-ring-drag了！")
+	
+	elif event is InputEventMouseMotion:
+		# 鼠标移动时才开始拖动
+		if event.button_mask == MOUSE_BUTTON_MASK_LEFT and current_mode == ring_mode and selected_ring != -1:
+			if !is_dragging:
+				# 首次移动时开始拖动
+				start_ring_drag(event.position)
+				print("input方法调用了start-ring了！")
+			else:
+				update_ring_drag(event.position)
+				print("input方法调用了update-ring了！")
 
-		# 在每次更新位置后检查匹配
-		if is_rotating and rotation_progress > 0:
-			check_all_matches()
+# 获取点击位置对应的环索引
+func get_ring_at_position(position: Vector2) -> int:
+	var distance = position.distance_to(center)
+	
+	# 计算每个环的大致半径范围
+	for i in range(num_radii):
+		var ring_radius = base_radius + (i * spacing)
+		var inner_bound = ring_radius - spacing/2
+		var outer_bound = ring_radius + spacing/2
+		
+		if distance >= inner_bound and distance <= outer_bound:
+			return i
+	
+	return -1
+
+# 获取点击位置对应的直径索引
+func get_diameter_at_position(position: Vector2) -> int:
+	var direction = (position - center).normalized()
+	var angle = atan2(direction.y, direction.x)
+	if angle < 0:
+		angle += 2 * PI
+		
+	# 将角度转换为直径索引
+	# 直径索引是0到(num_angles/2 - 1)
+	var angle_step = PI / (num_angles / 2)
+	var index = int(round(angle / angle_step)) % (num_angles / 2)
+	
+	return index
+
+# 开始环的拖动
+func start_ring_drag(position: Vector2):
+	if selected_ring == -1 or state != move:
+		return
+		
+	is_dragging = true
+	drag_start_position = position
+	
+	# 计算起始拖动角度
+	var direction = (position - center).normalized()
+	drag_start_angle = atan2(direction.y, direction.x)
+	
+	# 记录拖动开始时的旋转角度
+	drag_rotation = ring_angle_indices[selected_ring] * (2 * PI / num_angles)
+	drag_start_rotation = drag_rotation
+	original_angle_index = ring_angle_indices[selected_ring]
+	
+	# 重置吸附状态
+	snapping_to_index = false
+	snap_progress = 0.0
+	print("start—ring-drag 我动啦！")
+
+# 更新环的拖动
+func update_ring_drag(position: Vector2):
+	if !is_dragging or selected_ring == -1:
+		return
+		
+	# 计算当前鼠标位置相对于中心的角度
+	var drag_vector = position - center
+	drag_current_angle = atan2(drag_vector.y, drag_vector.x)
+	
+	# 计算从开始拖动到现在的角度差
+	var angle_diff = drag_current_angle - drag_start_angle
+	
+	# 处理角度环绕（从-π到π的跨越）
+	if angle_diff > PI:
+		angle_diff -= 2 * PI
+	elif angle_diff < -PI:
+		angle_diff += 2 * PI
+	
+	# 将角度差直接应用到旋转角度上 (不再取反)
+	drag_rotation = drag_start_rotation + angle_diff
+	
+	# 更新可视旋转效果
+	update_drag_visuals()
+
+# 结束环的拖动
+func end_ring_drag(position: Vector2):
+	if !is_dragging or selected_ring == -1:
+		return
+		
+	is_dragging = false
+	
+	# 确定最接近的角度索引
+	var angle_step = 2 * PI / num_angles
+	
+	# 计算当前拖动旋转相对于0度的角度
+	var current_rotation_normalized = fmod(drag_rotation, 2 * PI)
+	if current_rotation_normalized < 0:
+		current_rotation_normalized += 2 * PI
+	
+	# 计算目标索引
+	var target_index = int(round(current_rotation_normalized / angle_step)) % int(num_angles)
+	if target_index < 0:
+		target_index += int(num_angles)
+	
+	print("drag_rotation:", drag_rotation, " target_index:", target_index)
+	
+	# 计算目标角度
+	var target_angle = target_index * angle_step
+	
+	# 判断是否发生了实际的旋转
+	if target_index != original_angle_index:
+		# 发生了旋转，扣除步数
+		if remaining_moves > 0:
+			remaining_moves -= 1
+		update_ui()
+	
+	# 启动吸附动画
+	snapping_to_index = true
+	snap_target_angle = target_angle
+	snap_progress = 0.0
+
+# 更新点的位置和数据结构
+func update_all_dots_positions(force_final_position: bool = false):
+	# 添加角度步长的定义
+	var angle_step = 2 * PI / num_angles
+	
+	for angle_index in range(num_angles):
+		for radius_index in range(num_radii):
+			# 计算实际角度
+			var actual_angle = 0.0
+			if current_mode == ring_mode and radius_index == selected_ring and !force_final_position:
+				if is_dragging:
+					# 拖动时使用拖动旋转量
+					actual_angle = angle_index * angle_step - drag_rotation
+				elif snapping_to_index:
+					# 正在吸附到整数位置时
+					actual_angle = angle_index * angle_step - drag_rotation
+				else:
+					# 静止状态，直接使用存储的索引偏移
+					actual_angle = (angle_index + ring_angle_indices[radius_index]) % num_angles * angle_step
+			else:
+				# 非选中环或非环模式，使用存储的索引偏移
+				actual_angle = (angle_index + ring_angle_indices[radius_index]) % num_angles * angle_step
+			
+			# 设置点的位置
+			if angle_index < num_angles and radius_index < num_radii:
+				var dot = all_dots[angle_index][radius_index]
+				if dot != null:
+					dot.position = Vector2(
+						center.x + cos(actual_angle) * (base_radius + radius_index * spacing),
+						center.y + sin(actual_angle) * (base_radius + radius_index * spacing)
+					)
 
 func setup_timers():
 	destroy_timer.connect("timeout", Callable(self, "destroy_matches"))
@@ -526,8 +657,8 @@ func check_match(angle_index: int, radius_index: int) -> bool:
 	
 	# 更新分数
 	if was_matched:
-		score += matched_dots.size() * score_multiplier
-		check_level_up()  # 检查是否可以升级
+		score += matched_dots.size()
+		check_level_target()
 		
 	return was_matched
 
@@ -629,7 +760,9 @@ func update_ui():
 		if game_mode == PUZZLE_MODE:
 			ui.update_level(current_level)
 		elif game_mode == ENDLESS_MODE:
-			ui.update_endless_level(current_level, score, level_thresholds[current_level + 1] if current_level + 1 < level_thresholds.size() else -1)
+			var target = get_current_level_target()
+			var next_target = get_next_level_target()
+			ui.update_level_info(current_level, target, next_target)
 
 func create_ring_highlights():
 	# 为每个环创建高亮节点
@@ -687,54 +820,68 @@ func create_ring_highlights():
 			cos(angle + PI) * (base_radius + (num_radii - 1) * spacing + 50),
 			sin(angle + PI) * (base_radius + (num_radii - 1) * spacing + 50)
 		)
-		
 		line.add_point(start_point)
 		line.add_point(end_point)
 		highlight.visible = false
 
-func get_ring_at_position(pos: Vector2) -> int:
-	var local_pos = pos - center
-	var distance = local_pos.length()
-	
-	# 检查是否在圆盘范围内
-	if distance < base_radius or distance > base_radius + (num_radii * spacing):
-		return -1
-	
-	# 计算点击位置对应的环
-	var ring = floor((distance - base_radius) / spacing)
-	return clamp(ring, 0, num_radii - 1)
-
 func select_ring(ring: int):
+	if ring < 0 or ring >= num_radii:
+		return
+		
 	if ring == selected_ring:
 		return
 	
+	# 首先重置所有状态变量
+	var old_ring = selected_ring
+	var was_dragging = is_dragging
+	var was_snapping = snapping_to_index
+	
+	is_dragging = false
+	snapping_to_index = false
+	drag_start_position = Vector2.ZERO
+	drag_start_angle = 0.0
+	drag_current_angle = 0.0
+	drag_rotation = 0.0
+	drag_start_rotation = 0.0
+	original_angle_index = 0
+	snap_progress = 0.0
+	snap_target_angle = 0.0
+	
+	# 在切换环之前，确保之前环的位置被正确保存
+	if old_ring != -1 and (was_dragging or was_snapping):
+		# 使用环的实际角度索引计算最终位置
+		var final_index = ring_angle_indices[old_ring]
+		print("Switching from ring", old_ring, "to ring", ring, "final_index:", final_index)
+	
 	# 取消之前的高亮
-	if selected_ring != -1:
-		ring_highlights[selected_ring].visible = false
+	for i in range(num_radii):
+		if i < ring_highlights.size():
+			ring_highlights[i].visible = false
 	
 	# 设置新的高亮
 	selected_ring = ring
-	ring_highlights[selected_ring].visible = true
+	if selected_ring < ring_highlights.size():
+		ring_highlights[selected_ring].visible = true
 	
-	# 使用当前环的角度索引
+	# 使用当前环的实际角度索引
 	current_angle_index = ring_angle_indices[ring]
 	target_angle_index = current_angle_index
 	rotation_progress = 0.0
 	is_rotating = false
+	
+	# 更新所有点的位置以反映当前状态
+	#update_all_dots_positions(true)
+	print("Before update_all_dots_positions: ", ring_angle_indices[selected_ring])
+	update_all_dots_positions(true)
+	print("After update_all_dots_positions: ", ring_angle_indices[selected_ring])
 
-func select_previous_ring():
-	if selected_ring >= num_radii - 1:
-		select_ring(0)  # 如果是最外圈，跳到最内圈
-	else:
-		select_ring(selected_ring + 1)  # 否则向外移动一圈
-
-func select_next_ring():
-	if selected_ring <= 0:
-		select_ring(num_radii - 1)  # 如果是最内圈，跳到最外圈
-	else:
-		select_ring(selected_ring - 1)  # 否则向内移动一圈
+	
 
 func toggle_selection_mode():
+	# 重置拖动状态
+	is_dragging = false
+	is_diameter_dragging = false
+	
 	if current_mode == ring_mode:
 		var temp_array = make_polar_array()
 		for angle_index in num_angles:
@@ -777,11 +924,20 @@ func toggle_selection_mode():
 		state = move
 
 func select_diameter(diameter_index: int):
+	if diameter_index < 0 or diameter_index >= num_angles / 2:
+		return
+		
 	if diameter_index == selected_diameter:
 		return
 	
+	# 取消之前的高亮
+	for i in range(num_radii, ring_highlights.size()):
+		ring_highlights[i].visible = false
+	
+	# 设置新的高亮
 	selected_diameter = diameter_index
-	update_diameter_highlights()
+	if selected_diameter + num_radii < ring_highlights.size():
+		ring_highlights[selected_diameter + num_radii].visible = true
 
 func select_previous_diameter():
 	if selected_diameter <= 0:
@@ -796,10 +952,22 @@ func select_next_diameter():
 		select_diameter(selected_diameter + 1)
 
 func move_diameter_clockwise():
+	# 此函数保留但通过点击直径选择后的左右移动实现
 	if state != move or selected_diameter == -1:
 		return
 		
+	if game_mode == ENDLESS_MODE and remaining_moves <= 0:
+		if ui:
+			game_over()  # 显示游戏结束
+		return
+		
 	state = wait
+	
+	# 扣除步数
+	if remaining_moves > 0:
+		remaining_moves -= 1
+	update_ui()
+	
 	# 获取选中直径的角度
 	var angle1 = selected_diameter * (2 * PI / num_angles)  # 一端
 	var angle2 = angle1 + PI  # 另一端（相差180度）
@@ -912,6 +1080,12 @@ func move_diameter_counter_clockwise():
 		return
 		
 	state = wait
+	
+	# 扣除步数
+	if remaining_moves > 0:
+		remaining_moves -= 1
+	update_ui()
+	
 	# 获取选中直径的角度
 	var angle1 = selected_diameter * (2 * PI / num_angles)  # 一端
 	var angle2 = angle1 + PI  # 另一端（相差180度）
@@ -1028,19 +1202,70 @@ func update_diameter_highlights():
 		ring_highlights[i].visible = (i - num_radii == selected_diameter)
 
 func destroy_matches():
-	# 遍历所有点，删除被标记为匹配的点
+	# 在无限模式下，应用buff效果
 	var was_matched = false
+	var matched_count = 0
+	var matched_dots = []
+	
+	# 收集所有匹配的点
 	for angle_index in num_angles:
 		for radius_index in num_radii:
 			if all_dots[angle_index][radius_index] != null:
 				if all_dots[angle_index][radius_index].matched:
-					# 删除节点
-					all_dots[angle_index][radius_index].queue_free()
+					matched_dots.append(all_dots[angle_index][radius_index])
+					matched_count += 1
+	
+	# 应用得分规则
+	var score_multiplier = 1
+	
+	# 检查是否有得分加成buff
+	if game_mode == ENDLESS_MODE:
+		for buff in active_buffs:
+			match buff.id:
+				5:  # 同色消除加成
+					var all_same_color = true
+					var first_color = ""
+					
+					if matched_dots.size() > 0:
+						first_color = matched_dots[0].color
+						for dot in matched_dots:
+							if dot.color != first_color:
+								all_same_color = false
+								break
+					
+					if all_same_color and matched_dots.size() > 0:
+						score_multiplier *= 1.5
+				
+				6:  # 连击加成
+					# 连击系统需要额外状态跟踪，这里简化为按匹配数量加成
+					score_multiplier *= (1.0 + min(matched_count / 10.0, 1.0))
+				
+				7:  # 完美消除
+					if matched_count >= 5:
+						score_multiplier *= 1.5
+	
+	# 计算分数
+	if matched_count > 0:
+		was_matched = true
+		score += matched_count * score_multiplier
+		
+		# 检查是否达到关卡目标
+		if game_mode == ENDLESS_MODE:
+			check_level_target()
+	
+	# 删除匹配的点
+	for dot in matched_dots:
+		dot.queue_free()
+		
+		# 从数组中移除
+		for angle_index in num_angles:
+			for radius_index in num_radii:
+				if all_dots[angle_index][radius_index] == dot:
 					all_dots[angle_index][radius_index] = null
-					was_matched = true
-
+	
 	if was_matched:
 		collapse_timer.start()
+		update_ui()
 	else:
 		state = move
 
@@ -1082,46 +1307,189 @@ func spawn_dots():
 				all_dots[angle_index][radius_index] = dot
 
 func load_puzzle_level():
+	# 安全地从Global单例中获取当前关卡
+	var global_node = null
+	if get_tree().get_root().has_node("Global"):
+		global_node = get_tree().get_root().get_node("Global")
+	
+	if global_node and global_node.has_method("get_current_puzzle_level"):
+		current_level = global_node.get_current_puzzle_level()
+	else:
+		# 如果Global不存在或没有所需方法，使用默认值
+		current_level = 1
+		print("Warning: Global node or current_puzzle_level not found. Using default level 1.")
+	
 	# 加载关卡数据
 	load_level_data()
 	# 生成解谜模式的点阵
 	spawn_puzzle_dots()
 
 func initialize_endless_mode():
-	# 初始化无限模式
+	current_level = 1
+	score = 0
+	
+	# 设置当前关卡步数
+	if current_level <= level_moves.size():
+		remaining_moves = level_moves[current_level - 1]
+	else:
+		# 如果超出预设关卡，使用最后一个关卡的步数
+		remaining_moves = level_moves[level_moves.size() - 1]
+	
+	# 更新UI显示
+	if ui:
+		var target = get_current_level_target()
+		var next_target = get_next_level_target()
+		ui.update_level_info(current_level, target, next_target)
+	
+	# 生成初始棋盘
+	spawn_dots()
+	
+	# 应用激活的buff
+	apply_active_buffs()
+
+# 获取当前关卡目标分数
+func get_current_level_target() -> int:
+	if current_level <= level_targets.size():
+		return level_targets[current_level - 1]
+	else:
+		# 如果超出预设关卡，使用公式计算目标分数
+		var last_target = level_targets[level_targets.size() - 1]
+		return last_target + (current_level - level_targets.size()) * 2500
+
+# 获取下一关目标分数
+func get_next_level_target() -> int:
+	return get_current_level_target()
+
+# 检查是否达成关卡目标
+func check_level_target():
+	var target = get_current_level_target()
+	if score >= target:
+		complete_level()
+
+# 完成关卡
+func complete_level():
+	# 提供3个随机buff供选择
+	var buff_options = select_random_buffs(3)
+	
+	# 显示关卡完成面板
+	if ui:
+		ui.show_level_complete(score, buff_options)
+
+# 从可用buff中随机选择指定数量
+func select_random_buffs(count: int) -> Array:
+	var unused_buffs = []
+	var active_buff_ids = []
+	
+	# 获取已激活buff的ID列表
+	for buff in active_buffs:
+		active_buff_ids.append(buff.id)
+	
+	# 找出未使用的buff
+	for buff in available_buffs:
+		if not buff.id in active_buff_ids:
+			unused_buffs.append(buff)
+	
+	# 如果可选buff不足，返回所有可用buff
+	if unused_buffs.size() <= count:
+		return unused_buffs
+	
+	# 随机选择指定数量的buff
+	var selected_buffs = []
+	for i in range(count):
+		var rand_index = randi() % unused_buffs.size()
+		selected_buffs.append(unused_buffs[rand_index])
+		unused_buffs.remove_at(rand_index)
+	
+	return selected_buffs
+
+# 应用buff
+func apply_buff(buff_id: int):
+	# 查找对应ID的buff
+	for buff in available_buffs:
+		if buff.id == buff_id:
+			# 添加到激活列表
+			active_buffs.append(buff)
+			break
+	
+	# 应用所有激活的buff
+	apply_active_buffs()
+	
+	# 进入下一关
+	advance_to_next_level()
+
+# 应用激活的所有buff
+func apply_active_buffs():
+	# 检查是否有额外步数buff
+	for buff in active_buffs:
+		if buff.id == 9:  # 额外步数
+			remaining_moves += 2
+
+# 进入下一关
+func advance_to_next_level():
+	current_level += 1
+	
+	# 设置新关卡的步数
+	if current_level <= level_moves.size():
+		remaining_moves = level_moves[current_level - 1]
+	else:
+		# 如果超出预设关卡，使用最后一个关卡的步数
+		remaining_moves = level_moves[level_moves.size() - 1]
+	
+	# 重置分数
+	score = 0
+	
+	# 更新UI
+	if ui:
+		var target = get_current_level_target()
+		var next_target = get_next_level_target()
+		ui.update_level_info(current_level, target, next_target)
+	
+	# 重新生成棋盘
+	clear_board()
 	spawn_dots()
 
-func reset_moves():
-	remaining_moves = base_moves
+# 清空棋盘
+func clear_board():
+	for angle_index in num_angles:
+		for radius_index in num_radii:
+			if all_dots[angle_index][radius_index] != null:
+				all_dots[angle_index][radius_index].queue_free()
+				all_dots[angle_index][radius_index] = null
 
-func check_level_up():
-	if game_mode != ENDLESS_MODE:
+# 游戏结束
+func game_over():
+	if ui:
+		ui.show_game_over(score)
+
+# 计算两个角度之间的最小差值（考虑循环）
+func angle_difference(angle1: float, angle2: float) -> float:
+	var diff = fmod(angle1 - angle2 + 3 * PI, 2 * PI) - PI
+	return diff
+
+# 更新拖动的视觉效果
+func update_drag_visuals():
+	if selected_ring == -1:
 		return
 		
-	var next_level = current_level + 1
-	if next_level >= level_thresholds.size():
-		return
+	# 更新高亮环的旋转
+	if selected_ring < ring_highlights.size():
+		ring_highlights[selected_ring].rotation = drag_rotation
 		
-	if score >= level_thresholds[next_level]:
-		current_level = next_level
-		reset_moves()  # 升级时重置步数
-		
-		# 检查是否需要进入狂热状态（从2级开始，每5级触发一次）
-		if current_level >= 2 and current_level % 5 == 0:
-			start_frenzy_mode()
-		
-		if ui:
-			ui.show_level_up(current_level)  # 显示升级提示
-
-func start_frenzy_mode():
-	is_frenzy = true
-	score_multiplier = 2
-	frenzy_timer.start()
-	if ui:
-		ui.update_frenzy_state(true, frenzy_timer.time_left)
-
-func _on_frenzy_timeout():
-	is_frenzy = false
-	score_multiplier = 1
-	if ui:
-		ui.update_frenzy_state(false, 0)
+	# 更新环上所有点的位置
+	for angle_index in num_angles:
+		for radius_index in num_radii:
+			if radius_index == selected_ring and all_dots[angle_index][radius_index] != null:
+				var dot = all_dots[angle_index][radius_index]
+				var angle_step = 2 * PI / num_angles
+				
+				# 计算点的基础角度
+				var base_angle = angle_index * angle_step
+				
+				# 计算实际旋转后的角度，应用当前拖动值
+				# 反转旋转方向以修复拖动方向问题
+				var rotated_angle = base_angle + drag_rotation
+				
+				var radius = base_radius + (radius_index * spacing)
+				var x = cos(rotated_angle) * radius
+				var y = sin(rotated_angle) * radius
+				dot.position = Vector2(x, y) + center

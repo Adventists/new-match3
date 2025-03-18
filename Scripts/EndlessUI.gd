@@ -3,18 +3,18 @@ extends Control
 @onready var moves_label = $MainInfo/MovesLabel
 @onready var score_label = $MainInfo/ScoreLabel
 @onready var level_label = $TopInfo/LevelLabel
+@onready var target_label = $TopInfo/TargetLabel
 @onready var progress_bar = $TopInfo/ProgressBar
-@onready var frenzy_panel = $FrenzyPanel
-@onready var frenzy_timer_label = $FrenzyPanel/TimerLabel
-@onready var level_up_panel = $LevelUpPanel
 @onready var game_over_panel = $GameOverPanel
+@onready var level_complete_panel = $LevelCompletePanel
+
+# 缓存关卡信息
+var current_level = 1
+var current_target = 0
+var next_target = 0
 
 func _ready():
 	# 隐藏所有面板
-	if frenzy_panel:
-		frenzy_panel.hide()
-	if level_up_panel:
-		level_up_panel.hide()
 	if game_over_panel:
 		game_over_panel.hide()
 		# 连接游戏结束面板的按钮信号
@@ -24,6 +24,20 @@ func _ready():
 			restart_button.pressed.connect(_on_restart_button_pressed)
 		if quit_button:
 			quit_button.pressed.connect(_on_quit_button_pressed)
+	
+	if level_complete_panel:
+		level_complete_panel.hide()
+		# 连接关卡完成面板的按钮信号
+		var next_button = level_complete_panel.get_node("VBoxContainer/NextButton")
+		var buff_buttons = []
+		for i in range(1, 4):
+			buff_buttons.append(level_complete_panel.get_node("VBoxContainer/BuffContainer/Buff%dButton" % i))
+		
+		if next_button:
+			next_button.pressed.connect(_on_next_button_pressed)
+		for button in buff_buttons:
+			if button:
+				button.pressed.connect(func(): _on_buff_selected(button.get_meta("buff_id") if button.has_meta("buff_id") else 0))
 
 func update_moves(moves: int):
 	if moves_label:
@@ -32,50 +46,63 @@ func update_moves(moves: int):
 func update_score(score: int):
 	if score_label:
 		score_label.text = "分数: %d" % score
+	
+	# 更新进度条
+	if progress_bar and current_target > 0:
+		progress_bar.max_value = next_target
+		progress_bar.value = min(score, next_target)
 
-# 更新等级和进度条
-func update_endless_level(level: int, current_score: int, next_threshold: int):
+# 更新关卡信息
+func update_level_info(level: int, target_score: int, next_level_target: int):
+	current_level = level
+	current_target = target_score
+	next_target = next_level_target
+	
 	if level_label:
-		level_label.text = "等级: %d" % level
+		level_label.text = "关卡: %d" % level
+	
+	if target_label:
+		target_label.text = "目标: %d" % target_score
+	
 	if progress_bar:
-		if next_threshold != -1:
-			progress_bar.max_value = next_threshold
-			progress_bar.value = current_score
-		else:
-			progress_bar.value = progress_bar.max_value
+		progress_bar.max_value = next_level_target
+		progress_bar.value = 0
 
-# 更新狂热状态
-func update_frenzy_state(is_active: bool, time_left: float):
-	if frenzy_panel:
-		if is_active:
-			frenzy_panel.show()
-			update_frenzy_timer(time_left)
-		else:
-			frenzy_panel.hide()
+# 显示关卡完成面板
+func show_level_complete(score: int, buffs: Array):
+	if level_complete_panel:
+		level_complete_panel.show()
+		
+		# 更新分数显示
+		var score_label = level_complete_panel.get_node("VBoxContainer/ScoreLabel")
+		if score_label:
+			score_label.text = "得分: %d" % score
+		
+		# 更新BUFF选项
+		var buff_container = level_complete_panel.get_node("VBoxContainer/BuffContainer")
+		if buff_container:
+			for i in range(min(3, buffs.size())):
+				var buff_button = buff_container.get_node("Buff%dButton" % (i+1))
+				if buff_button:
+					buff_button.text = buffs[i].name
+					buff_button.set_meta("buff_id", buffs[i].id)
 
-# 更新狂热状态计时器
-func update_frenzy_timer(time_left: float):
-	if frenzy_timer_label:
-		frenzy_timer_label.text = "狂热状态: %.1f秒" % time_left
-
-# 显示升级提示
-func show_level_up(level: int):
-	if level_up_panel:
-		level_up_panel.show()
-		var label = level_up_panel.get_node("Label")
-		if label:
-			label.text = "升级！\n当前等级：%d" % level
-		var tween = create_tween()
-		tween.tween_interval(2.0)
-		tween.tween_callback(func(): level_up_panel.hide())
-
-# 显示游戏结束
-func show_game_over():
+# 显示游戏结束面板
+func show_game_over(score: int):
 	if game_over_panel:
 		game_over_panel.show()
 		var label = game_over_panel.get_node("VBoxContainer/Label")
 		if label:
-			label.text = "游戏结束！\n步数用完了！"
+			label.text = "游戏结束！\n你的得分: %d" % score
+
+# 按钮回调
+func _on_next_button_pressed():
+	level_complete_panel.hide()
+	# 游戏逻辑会在用户选择buff后自动处理下一关
+
+func _on_buff_selected(buff_id):
+	level_complete_panel.hide()
+	get_parent().get_node("Disk").apply_buff(buff_id)
 
 # 重新开始游戏
 func _on_restart_button_pressed():

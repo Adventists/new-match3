@@ -55,7 +55,7 @@ alignment = 1
 custom_minimum_size = Vector2(0, 60)
 layout_mode = 2
 theme_override_font_sizes/font_size = 32
-text = "解谜模式"
+text = "新手引导"
 
 [node name="EndlessModeButton" type="Button" parent="ModeContainer"]
 custom_minimum_size = Vector2(0, 60)

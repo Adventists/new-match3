@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://Scripts/PuzzleGame.gd" id="1_wb8sp"]
 [ext_resource type="Script" path="res://Scripts/disk.gd" id="2_setwh"]
-[ext_resource type="PackedScene" uid="uid://1c8j1ethack" path="res://Scenes/PuzzleUI.tscn" id="3_i1rdf"]
+[ext_resource type="PackedScene" uid="uid://b8j6y2q3n4k5m" path="res://Scenes/PuzzleUI.tscn" id="3_i1rdf"]
 
 [node name="PuzzleGame" type="Node2D"]
 script = ExtResource("1_wb8sp")
@@ -16,7 +16,13 @@ color = Color(0, 0, 0, 1)
 
 [node name="Disk" type="Node2D" parent="."]
 script = ExtResource("2_setwh")
-num_radii = 4
 spacing = 75.0
 
 [node name="PuzzleUI" parent="." instance=ExtResource("3_i1rdf")]
+custom_minimum_size = Vector2(1024, 1024)
+anchors_preset = 0
+anchor_right = 0.0
+anchor_bottom = 0.0
+grow_horizontal = 1
+grow_vertical = 1
+metadata/_edit_use_anchors_ = true

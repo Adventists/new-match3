@@ -264,6 +264,13 @@ func _input(event):
 					end_ring_drag(event.position)
 				elif diameter_drag_active and current_mode == diameter_mode:
 					end_diameter_drag()
+		elif event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
+			# 右键取消拖动
+			print("右键取消拖动尝试：is_dragging=", is_dragging, ", diameter_drag_active=", diameter_drag_active)
+			if is_dragging and current_mode == ring_mode:
+				cancel_ring_drag()
+			elif diameter_drag_active and current_mode == diameter_mode:
+				cancel_diameter_drag()
 	
 	elif event is InputEventMouseMotion:
 		# 鼠标移动时才开始拖动
@@ -1294,105 +1301,68 @@ func update_diameter_highlights():
 		ring_highlights[i].visible = (i - num_radii == selected_diameter)
 
 func check_level_complete():
-	# 检查所有指定颜色的点是否都被消除
-	var level_complete = true
-	for angle_index in num_angles:
-		for radius_index in num_radii:
-			var dot = all_dots[angle_index][radius_index]
-			if dot != null and dot.color != "gray" and not dot.matched:
-				level_complete = false
-				break
+	# 对于前两关，检查所有指定颜色的点是否都被消除
+	var level_complete = false
+	
+	if current_level <= 3:
+		# 前3关使用消除全部点的完成条件
+		level_complete = true
+		for angle_index in num_angles:
+			for radius_index in num_radii:
+				var dot = all_dots[angle_index][radius_index]
+				if dot != null and dot.color != "gray" and not dot.matched:
+					level_complete = false
+					break
+	else:
+		# 第4关及以后使用分数目标作为完成条件
+		var target_score = 20 * current_level  # 根据当前关卡级别设定目标分数
+		if score >= target_score:
+			level_complete = true
 	
 	if level_complete:
-		# 更新Global中的关卡号
-		var global_node = get_tree().get_root().get_node("Global")
-		if global_node and global_node.has_method("set_current_puzzle_level"):
-			global_node.set_current_puzzle_level(current_level + 1)
-		
 		# 显示关卡完成UI
 		if ui:
 			ui.show_level_complete()
-		# 解锁下一关
-		current_level += 1
-
-# 添加回spawn_dots函数
-func spawn_dots():
-	for angle_index in num_angles:  # 遍历所有角度
-		for radius_index in num_radii:  # 遍历所有半径
-			if !restricted_fill(Vector2(angle_index, radius_index)):  # 这里用极坐标
-				var rand = floor(randf_range(0, possible_dots.size()))
-				var dot = possible_dots[rand].instantiate()
-				var loops = 0
-
-				# 防止初始生成就有匹配
-				while (check_match(angle_index, radius_index) and loops < 100):
-					rand = floor(randf_range(0, possible_dots.size()))
-					loops += 1
-					dot = possible_dots[rand].instantiate()
-
-				add_child(dot)
-				dot.position = grid_to_pixel(angle_index, radius_index, false)
-				all_dots[angle_index][radius_index] = dot
-
-func load_puzzle_level():
-	# 安全地从Global单例中获取当前关卡
-	var global_node = null
-	if get_tree().get_root().has_node("Global"):
-		global_node = get_tree().get_root().get_node("Global")
-	
-	if global_node and global_node.has_method("get_current_puzzle_level"):
-		current_level = global_node.get_current_puzzle_level()
-	else:
-		# 如果Global不存在或没有所需方法，使用默认值
-		current_level = 1
-		print("Warning: Global node or current_puzzle_level not found. Using default level 1.")
-	
-	# 加载关卡数据
-	load_level_data()
-	# 生成解谜模式的点阵
-	spawn_puzzle_dots()
-
-func initialize_endless_mode():
-	current_level = 1
-	score = 0
-	
-	# 设置当前关卡步数
-	if current_level <= level_moves.size():
-		remaining_moves = level_moves[current_level - 1]
-	else:
-		# 如果超出预设关卡，使用最后一个关卡的步数
-		remaining_moves = level_moves[level_moves.size() - 1]
-	
-	# 更新UI显示
-	if ui:
-		var target = get_current_level_target()
-		var next_target = get_next_level_target()
-		ui.update_level_info(current_level, target, next_target)
-	
-	# 生成初始棋盘
-	spawn_dots()
-	
-	# 应用激活的buff
-	apply_active_buffs()
-
-# 获取当前关卡目标分数
-func get_current_level_target() -> int:
-	if current_level <= level_targets.size():
-		return level_targets[current_level - 1]
-	else:
-		# 如果超出预设关卡，使用公式计算目标分数
-		var last_target = level_targets[level_targets.size() - 1]
-		return last_target + (current_level - level_targets.size()) * 2500
-
-# 获取下一关目标分数
-func get_next_level_target() -> int:
-	return get_current_level_target()
+			
+		# 重要：不在这里设置Global的关卡号
+		# 由_on_next_level_button_pressed函数处理
 
 # 检查是否达成关卡目标
 func check_level_target():
-	var target = get_current_level_target()
-	if score >= target:
-		complete_level()
+	if game_mode == PUZZLE_MODE:
+		# 对于前两关，使用消除全部点的机制，已由check_level_complete处理
+		if current_level <= 2:
+			return
+		
+		# 第3关及以后，使用分数目标机制
+		var target_score = 0
+		
+		# 读取关卡数据获取目标分数
+		if level_data and level_data.has("description"):
+			var description = level_data["description"]
+			# 尝试从描述中解析目标分数
+			var regex = RegEx.new()
+			regex.compile("\\d+")
+			var result = regex.search(description)
+			if result:
+				target_score = int(result.get_string())
+		
+		# 如果没有找到目标分数，使用默认公式
+		if target_score == 0:
+			target_score = 40 * current_level
+		
+		print("当前分数: %d, 目标分数: %d" % [score, target_score])
+		
+		# 检查是否达到目标分数
+		if score >= target_score:
+			# 不在这里调用show_level_complete，由check_level_complete处理
+			# 仅检查是否达到目标分数并设置标记
+			check_level_complete()
+	elif game_mode == ENDLESS_MODE:
+		# 无限模式下的目标检测
+		var target = get_current_level_target()
+		if score >= target:
+			complete_level()
 
 # 完成关卡
 func complete_level():
@@ -1521,3 +1491,128 @@ func update_drag_visuals():
 				var x = cos(rotated_angle) * radius
 				var y = sin(rotated_angle) * radius
 				dot.position = Vector2(x, y) + center
+
+# 添加回spawn_dots函数
+func spawn_dots():
+	for angle_index in num_angles:  # 遍历所有角度
+		for radius_index in num_radii:  # 遍历所有半径
+			if !restricted_fill(Vector2(angle_index, radius_index)):  # 这里用极坐标
+				var rand = floor(randf_range(0, possible_dots.size()))
+				var dot = possible_dots[rand].instantiate()
+				var loops = 0
+
+				# 防止初始生成就有匹配
+				while (check_match(angle_index, radius_index) and loops < 100):
+					rand = floor(randf_range(0, possible_dots.size()))
+					loops += 1
+					dot = possible_dots[rand].instantiate()
+
+				add_child(dot)
+				dot.position = grid_to_pixel(angle_index, radius_index, false)
+				all_dots[angle_index][radius_index] = dot
+
+func load_puzzle_level():
+	# 安全地从Global单例中获取当前关卡
+	var global_node = null
+	if get_tree().get_root().has_node("Global"):
+		global_node = get_tree().get_root().get_node("Global")
+	
+	if global_node and global_node.has_method("get_current_puzzle_level"):
+		current_level = global_node.get_current_puzzle_level()
+	else:
+		# 如果Global不存在或没有所需方法，使用默认值
+		current_level = 1
+		print("Warning: Global node or current_puzzle_level not found. Using default level 1.")
+	
+	# 加载关卡数据
+	load_level_data()
+	# 生成解谜模式的点阵
+	spawn_puzzle_dots()
+
+func initialize_endless_mode():
+	current_level = 1
+	score = 0
+	
+	# 设置当前关卡步数
+	if current_level <= level_moves.size():
+		remaining_moves = level_moves[current_level - 1]
+	else:
+		# 如果超出预设关卡，使用最后一个关卡的步数
+		remaining_moves = level_moves[level_moves.size() - 1]
+	
+	# 更新UI显示
+	if ui:
+		var target = get_current_level_target()
+		var next_target = get_next_level_target()
+		ui.update_level_info(current_level, target, next_target)
+	
+	# 生成初始棋盘
+	spawn_dots()
+	
+	# 应用激活的buff
+	apply_active_buffs()
+
+# 获取当前关卡目标分数
+func get_current_level_target() -> int:
+	if current_level <= level_targets.size():
+		return level_targets[current_level - 1]
+	else:
+		# 如果超出预设关卡，使用公式计算目标分数
+		var last_target = level_targets[level_targets.size() - 1]
+		return last_target + (current_level - level_targets.size()) * 2500
+
+# 获取下一关目标分数
+func get_next_level_target() -> int:
+	return get_current_level_target()
+
+# 取消环的拖动
+func cancel_ring_drag():
+	if !is_dragging or selected_ring == -1:
+		return
+		
+	print("取消环拖动 - 执行中")
+	
+	# 重置拖动状态
+	is_dragging = false
+	snapping_to_index = false
+	
+	# 重置拖动旋转到开始时的值
+	drag_rotation = drag_start_rotation
+	
+	# 恢复原始位置
+	update_all_dots_positions(true)
+	
+	# 状态恢复为可移动
+	state = move
+	
+	print("环拖动已取消，点位已重置")
+
+# 取消直径拖动
+func cancel_diameter_drag():
+	if !diameter_drag_active or selected_diameter == -1:
+		return
+		
+	print("取消直径拖动 - 执行中")
+	
+	diameter_drag_active = false
+	diameter_snapping = false
+	
+	# 恢复所有点到原始位置
+	for pos_key in diameter_original_positions:
+		var angle_index = int(pos_key.x)
+		var radius_index = int(pos_key.y)
+		
+		if angle_index < 0 or angle_index >= num_angles or radius_index < 0 or radius_index >= num_radii:
+			continue
+			
+		if all_dots[angle_index][radius_index] != null:
+			all_dots[angle_index][radius_index].position = diameter_original_positions[pos_key]
+	
+	# 清理状态
+	diameter_original_positions.clear()
+	diameter_drag_offset = 0.0
+	
+	# 恢复状态
+	state = move
+	
+	print("直径拖动已取消，点位已重置")

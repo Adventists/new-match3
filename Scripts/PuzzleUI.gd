@@ -99,30 +99,18 @@ func update_key_mechanism(level_data: Dictionary):
 func show_level_complete():
 	if level_complete_panel:
 		level_complete_panel.show()
-		# 更新分数和星星显示
+		# 更新分数显示
 		if score_label_complete:
 			score_label_complete.text = "得分：%d" % get_parent().get_node("Disk").score
-		if stars_label:
-			var stars = calculate_stars()
-			stars_label.text = "星星：%d" % stars
+
 
 # 显示步数耗尽面板
 func show_moves_exhausted():
 	if moves_exhausted_panel:
 		moves_exhausted_panel.show()
 
-func calculate_stars() -> int:
-	var disk = get_parent().get_node("Disk")
-	if disk.remaining_moves >= disk.level_data.moves * 0.8:
-		return 3
-	elif disk.remaining_moves >= disk.level_data.moves * 0.5:
-		return 2
-	else:
-		return 1
-
 func _on_next_level_button_pressed():
 	var disk = get_parent().get_node("Disk")
-	var next_level = disk.current_level + 1
 	
 	# 读取关卡数据以确定最大关卡数
 	var file = FileAccess.open("res://Resources/puzzle_levels.json", FileAccess.READ)
@@ -135,13 +123,26 @@ func _on_next_level_button_pressed():
 			max_level = data["levels"].size()
 		file.close()
 	
+	# 从Global直接获取当前关卡
+	var current_level = 0
+	var global = get_node("/root/Global")
+	if global and global.has_method("get_current_puzzle_level"):
+		current_level = global.get_current_puzzle_level()
+		print("当前关卡（从Global获取）: ", current_level)
+	else:
+		# 如果无法从Global获取，从disk获取
+		current_level = disk.current_level
+		print("当前关卡（从disk获取）: ", current_level)
+	
+	var next_level = current_level + 1
+	print("下一关: ", next_level)
+	
 	# 如果还有下一关，加载下一关；否则返回主菜单
 	if next_level <= max_level:
 		# 更新Global中的关卡号
-		var global = get_node("/root/Global")
 		if global:
 			global.set_current_puzzle_level(next_level)
-			print("Setting next level to: ", next_level)
+			print("设置下一关: ", next_level)
 		# 重新加载场景以开始新关卡
 		get_tree().reload_current_scene()
 	else:
@@ -157,6 +158,9 @@ func _on_restart_level_button_pressed():
 
 # 应用UI样式
 func apply_ui_styles():
+	
+	if level_label:
+		level_label.add_theme_color_override("font_color", Color(1, 0.5, 0.5))  # 红色
 	
 	return
 	# 主信息面板样式

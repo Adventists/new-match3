@@ -1,0 +1,13 @@
+res://Scenes/Dots/blue_dot.tscn::69171f127b1001d03a67af858990d4ab::1741317440::res://.godot/exported/133200997/export-a8442cccec4c553f7a9241795409cf37-blue_dot.scn
+res://Scenes/Dots/gray_dot.tscn::382666e264520deb9a1e1257ca07777a::1742379726::res://.godot/exported/133200997/export-858594d186a60d2e6297d1483e9081b3-gray_dot.scn
+res://Scenes/Dots/green_dot.tscn::50945568a16a2203266fced92208bb03::1741317440::res://.godot/exported/133200997/export-098dff7e7453528525e9bda545de3f92-green_dot.scn
+res://Scenes/Dots/pink_dot.tscn::f711a6f759ba479618b2eb69cdfabfc2::1741317440::res://.godot/exported/133200997/export-0ea2cd3df340fe28e5809668d58c3906-pink_dot.scn
+res://Scenes/Dots/red_dot.tscn::ea1ca0fbbd0973a7030254b3c5e6bfb8::1741594594::res://.godot/exported/133200997/export-3019a0c6caaf4cf80f517614344e5dbb-red_dot.scn
+res://Scenes/Dots/yellow_dot.tscn::116db9fdc0e59d57afd4d1df01766f29::1742379726::res://.godot/exported/133200997/export-493af1f8596bd06efcc52f66bd16e715-yellow_dot.scn
+res://Scenes/Dot.tscn::eff60e853736f1619d13fa929d2b0561::1741593889::res://.godot/exported/133200997/export-27c8fc3389e99e6499c8e7b7c8a336d1-Dot.scn
+res://Scenes/EndlessUI.tscn::f63286826c5a0cfd67ae308963c352a5::1742379726::res://.godot/exported/133200997/export-e48a3f70633f4f7fff5c2d29c6fb6204-EndlessUI.scn
+res://Scenes/Game.tscn::115f6fbdba0d524318a0bd413ea9e3ab::1742379725::res://.godot/exported/133200997/export-8ec1ce4394550eef6b399142f35b815f-Game.scn
+res://Scenes/MainMenu.tscn::ffed8296d4ddfaf6c031375b5d04139d::1742379726::res://.godot/exported/133200997/export-5d46f2c25b5b7595677274e5845c73b8-MainMenu.scn
+res://Scenes/PuzzleGame.tscn::cb0d7097bb5cbd9115fdbdce28ca96c3::1742379726::res://.godot/exported/133200997/export-f9ceb242af4c7a1f8d6e534192567e04-PuzzleGame.scn
+res://Scenes/PuzzleUI.tscn::2f648af01c4195ce4c8b3bd349937896::1742379773::res://.godot/exported/133200997/export-00ae7310041c9ce0e3d132556b173a29-PuzzleUI.scn
+res://default_env.tres::28c5730038195c877c90d6b0d0f36197::1742379773::res://.godot/exported/133200997/export-7cf3fd67ad9f55210191d77b582b8209-default_env.res

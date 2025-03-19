@@ -238,7 +238,7 @@ offset_right = -0.0800171
 offset_bottom = -8.0
 text = "有Bug!
 当4个同色圆点位于同一半径却仍未消除时，可按下Tab键重新检测消除"
-autowrap_mode = 2
+autowrap_mode = 3
 
 [node name="BugPanel2" type="Panel" parent="."]
 layout_mode = 1
@@ -260,7 +260,7 @@ offset_right = -0.0800171
 offset_bottom = -16.0
 text = "有Bug!
 当场上有空缺位置，没有自动补充时，可按下Tab键重新检测补充"
-autowrap_mode = 2
+autowrap_mode = 3
 
 [node name="MainMenuButton" type="Button" parent="."]
 layout_mode = 1

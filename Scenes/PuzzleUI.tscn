@@ -69,7 +69,7 @@ offset_right = -6.0
 offset_bottom = -17.0
 theme_override_font_sizes/font_size = 20
 text = "机制说明内容"
-autowrap_mode = 2
+autowrap_mode = 3
 
 [node name="MainInfoPanel" type="Panel" parent="."]
 layout_mode = 2
@@ -316,4 +316,4 @@ offset_right = -0.0800171
 offset_bottom = -8.0
 text = "有Bug!
 当4个同色圆点位于同一半径却仍未消除时，可按下Tab键重新检测消除"
-autowrap_mode = 2
+autowrap_mode = 3

@@ -261,3 +261,16 @@ offset_bottom = -16.0
 text = "有Bug!
 当场上有空缺位置，没有自动补充时，可按下Tab键重新检测补充"
 autowrap_mode = 2
+
+[node name="MainMenuButton" type="Button" parent="."]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -200.0
+offset_top = 136.0
+offset_right = -16.0
+offset_bottom = 186.0
+grow_horizontal = 0
+theme_override_font_sizes/font_size = 22
+text = "返回主菜单"

@@ -38,6 +38,11 @@ func _ready():
 		for button in buff_buttons:
 			if button:
 				button.pressed.connect(func(): _on_buff_selected(button.get_meta("buff_id") if button.has_meta("buff_id") else 0))
+	
+	# 连接主菜单按钮
+	var main_menu_button = $MainMenuButton
+	if main_menu_button:
+		main_menu_button.pressed.connect(_on_quit_button_pressed)
 
 func update_moves(moves: int):
 	if moves_label:

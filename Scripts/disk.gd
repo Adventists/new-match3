@@ -549,68 +549,62 @@ func check_match(angle_index: int, radius_index: int) -> Array:
 		return []
 	
 	var color_to_match = current_dot.color
+	var matched_dots = []
 	
-	# 获取所有指定半径上的点
+	# 规则1: 同一条半径上有4个同色点才消除（角度索引一致，环数为0,1,2,3）
 	var radius_dots = []
-	for a in num_angles:
-		if all_dots[a][radius_index] != null and all_dots[a][radius_index].color == color_to_match:
-			radius_dots.append(all_dots[a][radius_index])
+	# 只检查当前点所在的角度
+	if radius_index < num_radii:  # 确保是有效的环索引
+		var all_radius_dots_present = true
+		for r in range(num_radii):
+			if all_dots[angle_index][r] == null or all_dots[angle_index][r].color != color_to_match:
+				all_radius_dots_present = false
+				break
+			radius_dots.append(all_dots[angle_index][r])
+		
+		# 只有当该半径上所有点都是同色的才匹配
+		if all_radius_dots_present and radius_dots.size() == num_radii:
+			for d in radius_dots:
+				d.matched = true
+				if not matched_dots.has(d):
+					matched_dots.append(d)
 	
-	# 获取所有指定角度上的点
+	# 规则2: 同一环上有4个或更多连续同色点才消除（环数一致，角度索引连续，或0和num_angles-1连续）
 	var ring_dots = []
-	for r in num_radii:
-		if all_dots[angle_index][r] != null and all_dots[angle_index][r].color == color_to_match:
-			ring_dots.append(all_dots[angle_index][r])
-	
-	# 检查周围相连的点（环上）
-	var boundary_dots = []
+	# 检查当前点的相邻点
 	var a_prev = (angle_index - 1 + num_angles) % num_angles
 	var a_next = (angle_index + 1) % num_angles
 	
-	if all_dots[a_prev][radius_index] != null and all_dots[a_prev][radius_index].color == color_to_match:
-		boundary_dots.append(all_dots[a_prev][radius_index])
+	# 将当前点加入环点列表
+	ring_dots.append(current_dot)
 	
-	boundary_dots.append(current_dot)
-	
-	if all_dots[a_next][radius_index] != null and all_dots[a_next][radius_index].color == color_to_match:
-		boundary_dots.append(all_dots[a_next][radius_index])
-	
-	# 检查更多连续的点
-	var a_start = a_prev
+	# 向前检查连续点
+	var current_a = a_prev
 	while true:
-		a_start = (a_start - 1 + num_angles) % num_angles
-		if all_dots[a_start][radius_index] != null and all_dots[a_start][radius_index].color == color_to_match:
-			boundary_dots.insert(0, all_dots[a_start][radius_index])
+		if all_dots[current_a][radius_index] != null and all_dots[current_a][radius_index].color == color_to_match:
+			ring_dots.insert(0, all_dots[current_a][radius_index])
+			current_a = (current_a - 1 + num_angles) % num_angles
+			# 如果绕了一圈回到起点，停止检查
+			if current_a == angle_index:
+				break
 		else:
 			break
 	
-	var a_end = a_next
+	# 向后检查连续点
+	current_a = a_next
 	while true:
-		a_end = (a_end + 1) % num_angles
-		if all_dots[a_end][radius_index] != null and all_dots[a_end][radius_index].color == color_to_match:
-			boundary_dots.append(all_dots[a_end][radius_index])
+		if all_dots[current_a][radius_index] != null and all_dots[current_a][radius_index].color == color_to_match:
+			ring_dots.append(all_dots[current_a][radius_index])
+			current_a = (current_a + 1) % num_angles
+			# 如果绕了一圈回到起点，停止检查
+			if current_a == angle_index:
+				break
 		else:
 			break
 	
-	var matched_dots = []
-	
-	# 环上匹配
-	if boundary_dots.size() >= min_match_count:
-		for d in boundary_dots:
-			d.matched = true
-			if not matched_dots.has(d):
-				matched_dots.append(d)
-	
-	# 整个环匹配
+	# 检查是否有足够的连续点
 	if ring_dots.size() >= min_match_count:
 		for d in ring_dots:
-			d.matched = true
-			if not matched_dots.has(d):
-				matched_dots.append(d)
-	
-	# 半径匹配
-	if radius_dots.size() >= min_match_count:
-		for d in radius_dots:
 			d.matched = true
 			if not matched_dots.has(d):
 				matched_dots.append(d)

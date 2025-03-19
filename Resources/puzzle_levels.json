@@ -63,7 +63,7 @@
 			"description": "分数到达xx分",
 			"moves": 10,
 			"instruction": "",
-			"key_mechanism": "在基础个数之上，每个额外的消除个数，分数翻倍。\n例如：一次性消除5个基础红色圆点，则得分为 10*5 + 10。",
+			"key_mechanism": "在基础个数之上，每个额外的消除个数，分数翻倍。\n例如：一次性消除5个基础红色圆点，则得分为 10*5 + 10 = 60。",
 			"dots": [
 				{"angle_index": 0, "radius_index": 0, "color": "red"},
 				{"angle_index": 1, "radius_index": 0, "color": "blue"},
@@ -90,7 +90,7 @@
 			"description": "最后一关了！ \n分数到达xx分",
 			"moves": 10,
 			"instruction": "你已掌握了所有基本操作，现在尝试在有限步数内获得最高分数！",
-			"key_mechanism": "若一次操作造成连锁消除，则每一次额外的消除都会额外提供10分*消除次数的奖励分。",
+			"key_mechanism": "若一次操作造成连锁消除，则每一次额外的消除都会额外提供10分*连锁次数的奖励分。",
 			"dots": [
 				{"angle_index": 0, "radius_index": 0, "color": "red"},
 				{"angle_index": 1, "radius_index": 0, "color": "blue"},

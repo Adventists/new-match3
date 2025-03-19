@@ -135,6 +135,11 @@ var available_buffs = [
 	{"id": 12, "name": "保护罩", "description": "失败时有一次继续机会"}
 ]
 
+# 分数系统参数
+@export var base_score: int = 10  # 圆点的基础分值
+@export var min_match_count: int = 4  # 最少消除个数
+var chain_match_count = 0  # 连锁消除计数
+
 func _ready():
 	# 初始化UI引用
 	if get_tree().get_root().has_node("Game/EndlessUI"):
@@ -527,133 +532,167 @@ func is_in_array(array, item):
 			return true
 	return false
 
-func check_match(angle_index: int, radius_index: int) -> bool:
-	var dot = all_dots[angle_index][radius_index]
-	if dot == null:
-		return false
-		
-	# 获取当前点的颜色
-	var current_color = dot.color
+# 修改check_match函数返回匹配的点数组而不是布尔值
+func check_match(angle_index: int, radius_index: int) -> Array:
+	if all_dots[angle_index][radius_index] == null:
+		return []
 	
-	# 如果是灰色点，直接返回false
-	if current_color == "gray":
-		return false
+	var current_dot = all_dots[angle_index][radius_index]
+	if current_dot.color == "gray":  # 灰色点不参与匹配
+		return []
 	
-	var was_matched = false
+	var color_to_match = current_dot.color
+	
+	# 获取所有指定半径上的点
+	var radius_dots = []
+	for a in num_angles:
+		if all_dots[a][radius_index] != null and all_dots[a][radius_index].color == color_to_match:
+			radius_dots.append(all_dots[a][radius_index])
+	
+	# 获取所有指定角度上的点
+	var ring_dots = []
+	for r in num_radii:
+		if all_dots[angle_index][r] != null and all_dots[angle_index][r].color == color_to_match:
+			ring_dots.append(all_dots[angle_index][r])
+	
+	# 检查周围相连的点（环上）
+	var boundary_dots = []
+	var a_prev = (angle_index - 1 + num_angles) % num_angles
+	var a_next = (angle_index + 1) % num_angles
+	
+	if all_dots[a_prev][radius_index] != null and all_dots[a_prev][radius_index].color == color_to_match:
+		boundary_dots.append(all_dots[a_prev][radius_index])
+	
+	boundary_dots.append(current_dot)
+	
+	if all_dots[a_next][radius_index] != null and all_dots[a_next][radius_index].color == color_to_match:
+		boundary_dots.append(all_dots[a_next][radius_index])
+	
+	# 检查更多连续的点
+	var a_start = a_prev
+	while true:
+		a_start = (a_start - 1 + num_angles) % num_angles
+		if all_dots[a_start][radius_index] != null and all_dots[a_start][radius_index].color == color_to_match:
+			boundary_dots.insert(0, all_dots[a_start][radius_index])
+		else:
+			break
+	
+	var a_end = a_next
+	while true:
+		a_end = (a_end + 1) % num_angles
+		if all_dots[a_end][radius_index] != null and all_dots[a_end][radius_index].color == color_to_match:
+			boundary_dots.append(all_dots[a_end][radius_index])
+		else:
+			break
+	
 	var matched_dots = []
 	
-	# 检查环形方向的匹配
-	var ring_dots = []
-	var i = angle_index
+	# 环上匹配
+	if boundary_dots.size() >= min_match_count:
+		for d in boundary_dots:
+			d.matched = true
+			if not matched_dots.has(d):
+				matched_dots.append(d)
 	
-	# 向左检查
-	while i >= 0:
-		var check_dot = all_dots[i][radius_index]
-		if check_dot != null and check_dot.color == current_color and check_dot.color != "gray":
-			ring_dots.append(check_dot)
-		else:
-			break
-		i -= 1
-	
-	# 向右检查
-	i = angle_index + 1
-	while i < num_angles:
-		var check_dot = all_dots[i][radius_index]
-		if check_dot != null and check_dot.color == current_color and check_dot.color != "gray":
-			ring_dots.append(check_dot)
-		else:
-			break
-		i += 1
-	
-	# 检查环形边界情况（首尾相连）
-	if angle_index == 0 or angle_index == num_angles - 1:
-		var boundary_dots = []
-		
-		# 从右边界向左检查
-		i = num_angles - 1
-		while i >= 0:
-			var check_dot = all_dots[i][radius_index]
-			if check_dot != null and check_dot.color == current_color and check_dot.color != "gray":
-				boundary_dots.append(check_dot)
-			else:
-				break
-			i -= 1
-		
-		# 从左边界向右检查
-		i = 0
-		while i < num_angles:
-			var check_dot = all_dots[i][radius_index]
-			if check_dot != null and check_dot.color == current_color and check_dot.color != "gray":
-				boundary_dots.append(check_dot)
-			else:
-				break
-			i += 1
-		
-		if boundary_dots.size() >= match_count:
-			for d in boundary_dots:
-				if not ring_dots.has(d):
-					ring_dots.append(d)
-	
-	# 检查半径方向的匹配
-	var radius_dots = []
-	i = radius_index
-	
-	# 向内检查
-	while i >= 0:
-		var check_dot = all_dots[angle_index][i]
-		if check_dot != null and check_dot.color == current_color and check_dot.color != "gray":
-			radius_dots.append(check_dot)
-		else:
-			break
-		i -= 1
-	
-	# 向外检查
-	i = radius_index + 1
-	while i < num_radii:
-		var check_dot = all_dots[angle_index][i]
-		if check_dot != null and check_dot.color == current_color and check_dot.color != "gray":
-			radius_dots.append(check_dot)
-		else:
-			break
-		i += 1
-	
-	# 如果任一方向达到匹配数量，标记为匹配
-	if ring_dots.size() >= match_count:
+	# 整个环匹配
+	if ring_dots.size() >= min_match_count:
 		for d in ring_dots:
 			d.matched = true
-			d.dim()
-			matched_dots.append(d)
-		was_matched = true
+			if not matched_dots.has(d):
+				matched_dots.append(d)
 	
-	if radius_dots.size() >= match_count:
+	# 半径匹配
+	if radius_dots.size() >= min_match_count:
 		for d in radius_dots:
 			d.matched = true
-			d.dim()
-			matched_dots.append(d)
-		was_matched = true
+			if not matched_dots.has(d):
+				matched_dots.append(d)
 	
-	# 更新分数
-	if was_matched:
-		score += matched_dots.size()
-		check_level_target()
-		
-	return was_matched
+	return matched_dots
 
+# 优化check_all_matches函数，收集所有匹配点
 func check_all_matches():
+	var all_matched_dots = []
 	var was_matched = false
 	
 	# 检查所有位置的匹配
 	for angle_index in num_angles:
 		for radius_index in num_radii:
 			if all_dots[angle_index][radius_index] != null:
-				was_matched = check_match(angle_index, radius_index) or was_matched
+				var matched_dots = check_match(angle_index, radius_index)
+				if matched_dots.size() > 0:
+					was_matched = true
+					# 添加唯一的匹配点
+					for dot in matched_dots:
+						if not all_matched_dots.has(dot):
+							all_matched_dots.append(dot)
 	
+	# 一次性计算所有匹配点的分数
 	if was_matched:
+		calculate_score(all_matched_dots, chain_match_count)
 		destroy_timer.start()
+		
+		# 检查关卡目标
+		check_level_target()
+		
 		if game_mode == PUZZLE_MODE:
 			check_level_complete()
 	
 	return was_matched
+
+# 统一的分数计算函数
+func calculate_score(matched_dots: Array, current_chain: int):
+	if matched_dots.size() <= 0:
+		return
+	
+	# 计算得分
+	var points_count = matched_dots.size()
+	var base_points = base_score * points_count
+	var extra_points = base_score * max(0, points_count - min_match_count)
+	var chain_bonus = 10 * current_chain
+	var total_score = base_points + extra_points + chain_bonus
+	
+	# 打印详细得分信息
+	print("消除 %d 个圆点 (连锁次数 = %d)" % [points_count, current_chain])
+	print("基础得分 = %d × %d = %d" % [base_score, points_count, base_points])
+	print("额外消除加成 = %d × (%d - %d) = %d" % [base_score, points_count, min_match_count, extra_points])
+	print("连锁消除加成 = 10 × %d = %d" % [current_chain, chain_bonus])
+	print("总得分 = %d + %d + %d = %d" % [base_points, extra_points, chain_bonus, total_score])
+	
+	# 更新总分
+	score += total_score
+	print("消除得分: %d, 总分: %d" % [total_score, score])
+	
+	# 在消除完成后，增加连锁计数
+	chain_match_count += 1
+
+# 在所有消除和检查完成后，重置连锁计数
+func destroy_matches():
+	# 收集所有匹配的点
+	var matched_dots = []
+	for angle_index in num_angles:
+		for radius_index in num_radii:
+			if all_dots[angle_index][radius_index] != null:
+				if all_dots[angle_index][radius_index].matched:
+					matched_dots.append(all_dots[angle_index][radius_index])
+	
+	# 删除匹配的点
+	for dot in matched_dots:
+		dot.queue_free()
+		
+		# 从数组中移除
+		for angle_index in num_angles:
+			for radius_index in num_radii:
+				if all_dots[angle_index][radius_index] == dot:
+					all_dots[angle_index][radius_index] = null
+	
+	if matched_dots.size() > 0:
+		collapse_timer.start()
+		update_ui()
+	else:
+		state = move
+		# 重置连锁计数
+		chain_match_count = 0
 
 func collapse_columns():
 	# 在解谜模式中，不需要下落和填充新的点
@@ -1254,75 +1293,6 @@ func update_diameter_highlights():
 	for i in range(num_radii, ring_highlights.size()):
 		ring_highlights[i].visible = (i - num_radii == selected_diameter)
 
-func destroy_matches():
-	# 在无限模式下，应用buff效果
-	var was_matched = false
-	var matched_count = 0
-	var matched_dots = []
-	
-	# 收集所有匹配的点
-	for angle_index in num_angles:
-		for radius_index in num_radii:
-			if all_dots[angle_index][radius_index] != null:
-				if all_dots[angle_index][radius_index].matched:
-					matched_dots.append(all_dots[angle_index][radius_index])
-					matched_count += 1
-	
-	# 应用得分规则
-	var score_multiplier = 1
-	
-	# 检查是否有得分加成buff
-	if game_mode == ENDLESS_MODE:
-		for buff in active_buffs:
-			match buff.id:
-				5:  # 同色消除加成
-					var all_same_color = true
-					var first_color = ""
-					
-					if matched_dots.size() > 0:
-						first_color = matched_dots[0].color
-						for dot in matched_dots:
-							if dot.color != first_color:
-								all_same_color = false
-								break
-					
-					if all_same_color and matched_dots.size() > 0:
-						score_multiplier *= 1.5
-				
-				6:  # 连击加成
-					# 连击系统需要额外状态跟踪，这里简化为按匹配数量加成
-					score_multiplier *= (1.0 + min(matched_count / 10.0, 1.0))
-				
-				7:  # 完美消除
-					if matched_count >= 5:
-						score_multiplier *= 1.5
-	
-	# 计算分数
-	if matched_count > 0:
-		was_matched = true
-		score += matched_count * score_multiplier
-		
-		# 检查是否达到关卡目标
-		if game_mode == ENDLESS_MODE:
-			check_level_target()
-	
-	# 删除匹配的点
-	for dot in matched_dots:
-		dot.queue_free()
-		
-		# 从数组中移除
-		for angle_index in num_angles:
-			for radius_index in num_radii:
-				if all_dots[angle_index][radius_index] == dot:
-					all_dots[angle_index][radius_index] = null
-	
-	if was_matched:
-		collapse_timer.start()
-		update_ui()
-	else:
-		state = move
-
-# 添加检查关卡完成的函数
 func check_level_complete():
 	# 检查所有指定颜色的点是否都被消除
 	var level_complete = true

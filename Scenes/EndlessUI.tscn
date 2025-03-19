@@ -32,6 +32,7 @@ text = "目标: 500"
 horizontal_alignment = 1
 
 [node name="ProgressBar" type="ProgressBar" parent="TopInfo"]
+visible = false
 custom_minimum_size = Vector2(400, 20)
 layout_mode = 2
 size_flags_horizontal = 4
@@ -42,10 +43,10 @@ layout_mode = 1
 anchors_preset = -1
 anchor_top = 0.089
 anchor_bottom = 0.089
-offset_left = 20.0
-offset_top = -50.136
-offset_right = 220.0
-offset_bottom = 49.864
+offset_left = 824.0
+offset_top = -83.136
+offset_right = 1024.0
+offset_bottom = 16.864
 grow_vertical = 2
 theme_override_constants/separation = 10
 
@@ -187,15 +188,16 @@ anchors_preset = 12
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = -200.0
+offset_top = -136.0
 grow_horizontal = 2
 grow_vertical = 0
 
 [node name="VBoxContainer" type="VBoxContainer" parent="ControlsPanel"]
-layout_mode = 1
-anchors_preset = 15
+layout_mode = 2
 anchor_right = 1.0
-anchor_bottom = 1.0
+anchor_bottom = 1.302
+offset_top = -1.0
+offset_bottom = -35.656
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/separation = 10
@@ -210,8 +212,52 @@ horizontal_alignment = 1
 [node name="ControlsText" type="Label" parent="ControlsPanel/VBoxContainer"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = "↑↓：选择环
-←→：旋转环
-TAB：切换模式
-鼠标：点击选择环，拖动旋转"
+text = "TAB：切换模式
+鼠标左键：点击选择环或直径，拖动
+鼠标右键：取消移动"
 horizontal_alignment = 1
+
+[node name="BugPanel" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_top = 0.719
+anchor_right = 0.187
+anchor_bottom = 0.852
+offset_top = -0.256042
+offset_right = 0.511993
+offset_bottom = -0.448059
+
+[node name="Label" type="Label" parent="BugPanel"]
+layout_mode = 1
+anchors_preset = -1
+anchor_right = 0.99
+anchor_bottom = 1.0
+offset_left = 8.0
+offset_top = 16.0
+offset_right = -0.0800171
+offset_bottom = -8.0
+text = "有Bug!
+当4个同色圆点位于同一半径却仍未消除时，可按下Tab键重新检测消除"
+autowrap_mode = 2
+
+[node name="BugPanel2" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_right = 0.125
+anchor_bottom = 0.07
+offset_top = 568.0
+offset_right = 64.0
+offset_bottom = 632.32
+
+[node name="Label" type="Label" parent="BugPanel2"]
+layout_mode = 1
+anchors_preset = -1
+anchor_right = 0.99
+anchor_bottom = 1.0
+offset_left = 8.0
+offset_top = 8.0
+offset_right = -0.0800171
+offset_bottom = -16.0
+text = "有Bug!
+当场上有空缺位置，没有自动补充时，可按下Tab键重新检测补充"
+autowrap_mode = 2

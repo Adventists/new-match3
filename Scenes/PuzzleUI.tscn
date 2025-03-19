@@ -11,18 +11,88 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_xxxxx")
 
-[node name="MainInfoPanel" type="Panel" parent="."]
+[node name="LevelGoal" type="Panel" parent="."]
 layout_mode = 1
 anchors_preset = -1
-anchor_right = 0.838
-anchor_bottom = 0.229
-offset_right = -640.112
-offset_bottom = -0.496002
+anchor_left = 0.32
+anchor_right = 0.687
+anchor_bottom = 0.117
+offset_left = -7.68002
+offset_right = 0.511963
+offset_bottom = 8.19199
+grow_horizontal = 2
+
+[node name="Goal" type="Label" parent="LevelGoal"]
+layout_mode = 2
+anchor_left = 0.493
+anchor_right = 0.493
+offset_left = -125.312
+offset_right = 130.688
+offset_bottom = 128.0
+theme_override_font_sizes/font_size = 32
+text = "关卡描述"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+max_lines_visible = 4
+
+[node name="KeyMechanismPanel" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_top = 0.008
+anchor_right = 0.25
+anchor_bottom = 0.187
+offset_top = -8.192
+offset_bottom = 0.511993
+grow_vertical = 2
+
+[node name="Label" type="Label" parent="KeyMechanismPanel"]
+layout_mode = 1
+anchors_preset = -1
+anchor_right = 1.0
+offset_left = 8.0
+offset_top = 8.0
+offset_right = -8.0
+offset_bottom = 42.0
+theme_override_font_sizes/font_size = 24
+text = "关键机制"
+horizontal_alignment = 1
+
+[node name="KeyMechanismText" type="Label" parent="KeyMechanismPanel"]
+layout_mode = 1
+anchors_preset = -1
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = 64.0
+offset_right = -6.0
+offset_bottom = -17.0
+theme_override_font_sizes/font_size = 20
+text = "机制说明内容"
+autowrap_mode = 2
+
+[node name="MainInfoPanel" type="Panel" parent="."]
+layout_mode = 2
+anchor_left = 0.785
+anchor_top = 0.002
+anchor_right = 1.0
+anchor_bottom = 0.227
+offset_left = 0.159973
+offset_top = -0.0480001
+offset_right = -2.0
+offset_bottom = -0.448013
 
 [node name="MainInfo" type="VBoxContainer" parent="."]
 layout_mode = 1
-offset_right = 232.0
-offset_bottom = 214.0
+anchors_preset = -1
+anchor_left = 0.785
+anchor_top = 0.008
+anchor_right = 0.998
+anchor_bottom = 0.227
+offset_left = 3.15997
+offset_top = -8.192
+offset_right = 0.0479736
+offset_bottom = -16.448
 theme_override_constants/separation = 15
 
 [node name="MovesLabel" type="Label" parent="MainInfo"]
@@ -40,15 +110,7 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 32
 text = "关卡: %d"
 
-[node name="DescriptionLabel" type="Label" parent="MainInfo"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 24
-text = "关卡描述"
-autowrap_mode = 2
-max_lines_visible = 4
-
 [node name="LevelCompletePanel" type="Panel" parent="."]
-visible = false
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -108,13 +170,69 @@ size_flags_horizontal = 4
 theme_override_font_sizes/font_size = 24
 text = "返回主菜单"
 
-[node name="ControlsPanel" type="Panel" parent="."]
+[node name="MovesExhaustedPanel" type="Panel" parent="."]
 layout_mode = 1
-anchors_preset = -1
-anchor_top = 0.816
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -250.0
+offset_top = -150.0
+offset_right = 250.0
+offset_bottom = 150.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MovesExhaustedPanel"]
+layout_mode = 1
+anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = 0.415955
+offset_left = 20.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="TitleLabel" type="Label" parent="MovesExhaustedPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 36
+text = "步数耗尽！"
+horizontal_alignment = 1
+
+[node name="MessageLabel" type="Label" parent="MovesExhaustedPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "你的移动步数已用完，请选择重新开始或返回主菜单。"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="RestartLevelButton" type="Button" parent="MovesExhaustedPanel/VBoxContainer"]
+custom_minimum_size = Vector2(200, 50)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 24
+text = "重新开始"
+
+[node name="ReturnToMenuButton" type="Button" parent="MovesExhaustedPanel/VBoxContainer"]
+custom_minimum_size = Vector2(200, 50)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 24
+text = "返回主菜单"
+
+[node name="ControlsPanel" type="Panel" parent="."]
+custom_minimum_size = Vector2(600, 120)
+layout_mode = 1
+anchors_preset = -1
+anchor_top = 0.859
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = 0.383972
 grow_horizontal = 2
 grow_vertical = 0
 
@@ -124,9 +242,9 @@ anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 10.0
-offset_top = 10.0
+offset_top = 14.5
 offset_right = -10.0
-offset_bottom = -10.0
+offset_bottom = -11.5
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/separation = 10
@@ -141,8 +259,52 @@ horizontal_alignment = 1
 [node name="ControlsText" type="Label" parent="ControlsPanel/VBoxContainer"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = "↑↓：选择环
-←→：旋转环
-TAB：切换模式
-鼠标：点击选择环，拖动旋转"
+text = "Tab键：切换模式
+鼠标左键：点击选择环或直径，拖动
+鼠标右键：取消移动"
 horizontal_alignment = 1
+
+[node name="RestartLevelButton" type="Button" parent="."]
+offset_left = 8.0
+offset_top = 896.0
+offset_right = 160.0
+offset_bottom = 952.0
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 24
+text = "重新开始"
+
+[node name="MainMenuButton" type="Button" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = -64.0
+offset_right = 162.0
+offset_bottom = -8.0
+grow_vertical = 0
+theme_override_font_sizes/font_size = 24
+text = "返回主菜单"
+
+[node name="BugPanel" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_top = 0.719
+anchor_right = 0.186
+anchor_bottom = 0.852
+offset_top = -0.256042
+offset_right = 1.536
+offset_bottom = -0.448059
+
+[node name="Label" type="Label" parent="BugPanel"]
+layout_mode = 1
+anchors_preset = -1
+anchor_right = 0.99
+anchor_bottom = 1.0
+offset_left = 8.0
+offset_top = 16.0
+offset_right = -0.0800171
+offset_bottom = -8.0
+text = "有Bug!
+当4个同色圆点位于同一半径却仍未消除时，可按下Tab键重新检测消除"
+autowrap_mode = 2

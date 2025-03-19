@@ -2,9 +2,10 @@
 	"levels": [
 		{
 			"level": 1,
-			"description": "教学：旋转环",
+			"description": "关卡目标 \n消除4个红色圆点",
 			"moves": 5,
-			"instruction": "用鼠标点击环选择，然后拖动旋转环，将所有红色点连在一起消除。",
+			"instruction": "鼠标左键选中对应圆环，按住左键拖动可转动圆环。",
+			"key_mechanism": "4个同色圆点位于同一条半径上时，可以被消除。",
 			"dots": [
 				{"angle_index": 7, "radius_index": 0, "color": "red"},
 				{"angle_index": 5, "radius_index": 1, "color": "red"},
@@ -14,37 +15,36 @@
 		},
 		{
 			"level": 2,
-			"description": "教学：切换环",
+			"description": "关卡目标 \n消除4个蓝色圆点",
 			"moves": 5,
-			"instruction": "点击不同的环来选择，注意观察高亮显示的环。",
+			"instruction": "Tab键切换模式。\n鼠标左键选中对应直径，按住左键拖动可移动直径上的点。",
+			"key_mechanism": "4个或更多同色圆点在同一个圆环上连续时，可以被消除。",
 			"dots": [
 				{"angle_index": 0, "radius_index": 0, "color": "blue"},
 				{"angle_index": 1, "radius_index": 0, "color": "blue"},
-				{"angle_index": 2, "radius_index": 0, "color": "blue"},
-				{"angle_index": 0, "radius_index": 2, "color": "green"},
-				{"angle_index": 1, "radius_index": 2, "color": "green"},
-				{"angle_index": 2, "radius_index": 2, "color": "green"}
+				{"angle_index": 2, "radius_index": 1, "color": "blue"},
+				{"angle_index": 3, "radius_index": 0, "color": "blue"}
 			]
 		},
 		{
 			"level": 3,
 			"description": "教学：直径模式",
 			"moves": 5,
-			"instruction": "按TAB键切换到直径模式，点击任意直径，选中后点击直径的一端移动点。",
+			"instruction": "拖动过程中，按下鼠标右键，可取消移动。\n若松开鼠标左键时，对应位置的圆点产生了有效移动，则会扣除1步数。",
+			"key_mechanism": "步数归零时，未到达目标则视为失败。",
 			"dots": [
-				{"angle_index": 0, "radius_index": 0, "color": "yellow"},
-				{"angle_index": 0, "radius_index": 1, "color": "yellow"},
-				{"angle_index": 0, "radius_index": 2, "color": "yellow"},
-				{"angle_index": 4, "radius_index": 0, "color": "pink"},
-				{"angle_index": 4, "radius_index": 1, "color": "pink"},
-				{"angle_index": 4, "radius_index": 2, "color": "pink"}
+				{"angle_index": 4, "radius_index": 0, "color": "blue"},
+				{"angle_index": 7, "radius_index": 0, "color": "blue"},
+				{"angle_index": 6, "radius_index": 2, "color": "blue"},
+				{"angle_index": 5, "radius_index": 0, "color": "blue"}
 			]
 		},
 		{
 			"level": 4,
 			"description": "教学：综合练习",
 			"moves": 8,
-			"instruction": "结合使用环旋转和直径模式，尝试消除所有彩色点。拖动结束才会检测消除。",
+			"instruction": "TAB：切换模式\n鼠标左键：点击选择环或直径，拖动\n 鼠标右键：取消移动。",
+			"key_mechanism": "基础得分公式为：（圆点基础分值）*个数。\n每种颜色的圆点的基础分值均为10分。",
 			"dots": [
 				{"angle_index": 0, "radius_index": 0, "color": "red"},
 				{"angle_index": 1, "radius_index": 0, "color": "red"},
@@ -60,9 +60,37 @@
 		},
 		{
 			"level": 5,
-			"description": "恭喜完成教学！",
+			"description": "分数到达xx分",
+			"moves": 10,
+			"instruction": "",
+			"key_mechanism": "在基础个数之上，每个额外的消除个数，分数翻倍。\n例如：一次性消除5个基础红色圆点，则得分为 10*5 + 10。",
+			"dots": [
+				{"angle_index": 0, "radius_index": 0, "color": "red"},
+				{"angle_index": 1, "radius_index": 0, "color": "blue"},
+				{"angle_index": 2, "radius_index": 0, "color": "green"},
+				{"angle_index": 3, "radius_index": 0, "color": "yellow"},
+				{"angle_index": 4, "radius_index": 0, "color": "pink"},
+				{"angle_index": 5, "radius_index": 0, "color": "red"},
+				{"angle_index": 6, "radius_index": 0, "color": "blue"},
+				{"angle_index": 7, "radius_index": 0, "color": "green"},
+				
+				{"angle_index": 0, "radius_index": 2, "color": "yellow"},
+				{"angle_index": 2, "radius_index": 2, "color": "yellow"},
+				{"angle_index": 4, "radius_index": 2, "color": "yellow"},
+				{"angle_index": 6, "radius_index": 2, "color": "yellow"},
+				
+				{"angle_index": 1, "radius_index": 3, "color": "pink"},
+				{"angle_index": 3, "radius_index": 3, "color": "pink"},
+				{"angle_index": 5, "radius_index": 3, "color": "pink"},
+				{"angle_index": 7, "radius_index": 3, "color": "pink"}
+			]
+		},
+		{
+			"level": 6,
+			"description": "最后一关了！ \n分数到达xx分",
 			"moves": 10,
 			"instruction": "你已掌握了所有基本操作，现在尝试在有限步数内获得最高分数！",
+			"key_mechanism": "若一次操作造成连锁消除，则每一次额外的消除都会额外提供10分*消除次数的奖励分。",
 			"dots": [
 				{"angle_index": 0, "radius_index": 0, "color": "red"},
 				{"angle_index": 1, "radius_index": 0, "color": "blue"},

@@ -9,3 +9,4 @@ res://Scenes/EndlessUI.tscn
 res://Scripts/disk.gd
 res://Scripts/MainMenu.gd
 res://Resources/puzzle_levels.json
+res://Scripts/EndlessUI.gd

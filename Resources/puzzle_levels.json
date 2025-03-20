@@ -20,10 +20,10 @@
 			"instruction": "Tab键切换模式。\n鼠标左键选中对应直径，按住左键拖动可移动直径上的点。",
 			"key_mechanism": "4个或更多同色圆点在同一个圆环上连续时，可以被消除。",
 			"dots": [
-				{"angle_index": 0, "radius_index": 0, "color": "blue"},
-				{"angle_index": 7, "radius_index": 0, "color": "blue"},
-				{"angle_index": 6, "radius_index": 1, "color": "blue"},
-				{"angle_index": 5, "radius_index": 0, "color": "blue"}
+				{"angle_index": 0, "radius_index": 1, "color": "blue"},
+				{"angle_index": 7, "radius_index": 1, "color": "blue"},
+				{"angle_index": 6, "radius_index": 0, "color": "blue"},
+				{"angle_index": 5, "radius_index": 1, "color": "blue"}
 			]
 		},
 		{
@@ -46,26 +46,26 @@
 		{
 			"level": 4,
 			"description": "关卡目标 \n达到 80 分",
-			"moves": 8,
+			"moves": 5,
 			"instruction": "TAB：切换模式\n鼠标左键：点击选择环或直径，拖动\n 鼠标右键：取消移动。",
 			"key_mechanism": "基础得分公式为：（圆点基础分值）*个数。\n每种颜色的圆点的基础分值均为10分。",
 			"dots": [
 				{"angle_index": 6, "radius_index": 0, "color": "red"},
-				{"angle_index": 6, "radius_index": 1, "color": "red"},
-				{"angle_index": 6, "radius_index": 2, "color": "red"},
-				{"angle_index": 0, "radius_index": 3, "color": "red"},
+				{"angle_index": 5, "radius_index": 1, "color": "red"},
+				{"angle_index": 5, "radius_index": 2, "color": "red"},
+				{"angle_index": 1, "radius_index": 3, "color": "red"},
 				{"angle_index": 4, "radius_index": 0, "color": "green"},
 				{"angle_index": 4, "radius_index": 1, "color": "green"},
 				{"angle_index": 4, "radius_index": 2, "color": "green"},
-				{"angle_index": 0, "radius_index": 1, "color": "green"}
+				{"angle_index": 0, "radius_index": 3, "color": "green"}
 			]
 		},
 		{
 			"level": 5,
 			"description": "关卡目标 \n达到 100 分",
-			"moves": 10,
-			"instruction": "",
-			"key_mechanism": "在基础个数之上，每个额外的消除个数，分数翻倍。\n例如：一次性消除5个基础红色圆点，则得分为 10*5 + 10 = 60。",
+			"moves": 5,
+			"instruction": "TAB：切换模式\n鼠标左键：点击选择环或直径，拖动\n 鼠标右键：取消移动。",
+			"key_mechanism": "消除时每个额外的消除个数，获得额外分值。额外分值初始为10分。\n例如：一次性消除5个基础红色圆点，则得分为 10*5 + 10 = 60。",
 			"dots": [
 				{"angle_index": 0, "radius_index": 0, "color": "blue"},
 				{"angle_index": 1, "radius_index": 0, "color": "blue"},
@@ -74,7 +74,7 @@
 				{"angle_index": 4, "radius_index": 0, "color": "blue"},
 				{"angle_index": 0, "radius_index": 1, "color": "red"},
 				{"angle_index": 7, "radius_index": 1, "color": "red"},
-				{"angle_index": 6, "radius_index": 0, "color": "red"},
+				{"angle_index": 6, "radius_index": 2, "color": "red"},
 				{"angle_index": 5, "radius_index": 1, "color": "red"},
 				{"angle_index": 4, "radius_index": 1, "color": "red"}
 			]
@@ -82,9 +82,9 @@
 		{
 			"level": 6,
 			"description": "最后一关！ \n达到 120分",
-			"moves": 10,
-			"instruction": "你已掌握了所有基本操作，现在尝试在有限步数内获得最高分数！",
-			"key_mechanism": "若一次操作造成连锁消除，则每一次额外的消除都会额外提供10分*连锁次数的奖励分。",
+			"moves": 5,
+			"instruction": "TAB：切换模式\n鼠标左键：点击选择环或直径，拖动\n 鼠标右键：取消移动。",
+			"key_mechanism": "若造成连锁消除，则每次连锁消除都会额外提供50分*（连锁次数）的平方的奖励分。",
 			"dots": [
 				{"angle_index": 0, "radius_index": 3, "color": "red"},
 				{"angle_index": 1, "radius_index": 3, "color": "red"},

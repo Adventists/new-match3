@@ -7,6 +7,10 @@ extends Control
 @onready var progress_bar = $TopInfo/ProgressBar
 @onready var game_over_panel = $GameOverPanel
 @onready var level_complete_panel = $LevelCompletePanel
+@onready var moves_exhausted_panel = $MovesExhaustedPanel
+@onready var restart_level_button = $MovesExhaustedPanel/VBoxContainer/RestartLevelButton
+@onready var return_to_menu_button = $MovesExhaustedPanel/VBoxContainer/ReturnToMenuButton
+
 
 # 缓存关卡信息
 var current_level = 1
@@ -39,6 +43,11 @@ func _ready():
 			if button:
 				button.pressed.connect(func(): _on_buff_selected(button.get_meta("buff_id") if button.has_meta("buff_id") else 0))
 	
+	if restart_level_button:
+		restart_level_button.pressed.connect(_on_restart_level_button_pressed)
+	if return_to_menu_button:
+		return_to_menu_button.pressed.connect(_on_quit_button_pressed)
+	
 	# 连接主菜单按钮
 	var main_menu_button = $MainMenuButton
 	if main_menu_button:
@@ -47,6 +56,10 @@ func _ready():
 func update_moves(moves: int):
 	if moves_label:
 		moves_label.text = "剩余步数: %d" % moves
+		
+	# 当步数耗尽时显示弹窗
+	if moves <= 0:
+		show_moves_exhausted()
 
 func update_score(score: int):
 	if score_label:
@@ -116,3 +129,12 @@ func _on_restart_button_pressed():
 # 返回主菜单
 func _on_quit_button_pressed():
 	get_tree().change_scene_to_file("res://Scenes/MainMenu.tscn")
+
+# 显示步数耗尽面板
+func show_moves_exhausted():
+	if moves_exhausted_panel:
+		moves_exhausted_panel.show()
+
+# 重新开始当前关卡
+func _on_restart_level_button_pressed():
+	get_tree().reload_current_scene()

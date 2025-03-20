@@ -274,3 +274,59 @@ offset_bottom = 186.0
 grow_horizontal = 0
 theme_override_font_sizes/font_size = 22
 text = "返回主菜单"
+
+[node name="MovesExhaustedPanel" type="Panel" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -250.0
+offset_top = -150.0
+offset_right = 250.0
+offset_bottom = 168.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MovesExhaustedPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="TitleLabel" type="Label" parent="MovesExhaustedPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 36
+text = "步数耗尽！"
+horizontal_alignment = 1
+
+[node name="MessageLabel" type="Label" parent="MovesExhaustedPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "你的移动步数已用完，请选择重新开始或返回主菜单。"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="RestartLevelButton" type="Button" parent="MovesExhaustedPanel/VBoxContainer"]
+custom_minimum_size = Vector2(200, 50)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 24
+text = "重新开始"
+
+[node name="ReturnToMenuButton" type="Button" parent="MovesExhaustedPanel/VBoxContainer"]
+custom_minimum_size = Vector2(200, 50)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 24
+text = "返回主菜单"

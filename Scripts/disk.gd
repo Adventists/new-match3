@@ -141,7 +141,9 @@ var available_buffs = [
 
 # 分数系统参数
 @export var base_score: int = 10  # 圆点的基础分值
+@export var extra_score_base: int = 10  # 额外消除加成的基础分值
 @export var min_match_count: int = 4  # 最少消除个数
+@export var chain_bonus_base: int = 50  # 连锁奖励基础值
 var chain_match_count = 0  # 连锁消除计数
 
 func _ready():
@@ -338,6 +340,9 @@ func end_ring_drag(position: Vector2):
 		return
 		
 	is_dragging = false
+	
+	# 重置连锁计数
+	chain_match_count = 0
 	
 	# 确定最接近的角度索引
 	var angle_step = 2 * PI / num_angles
@@ -618,15 +623,15 @@ func calculate_score(matched_dots: Array, current_chain: int):
 	# 计算得分
 	var points_count = matched_dots.size()
 	var base_points = base_score * points_count
-	var extra_points = base_score * max(0, points_count - min_match_count)
-	var chain_bonus = 10 * current_chain
+	var extra_points = extra_score_base * max(0, points_count - min_match_count)
+	var chain_bonus = chain_bonus_base * (current_chain * current_chain)
 	var total_score = base_points + extra_points + chain_bonus
 	
 	# 打印详细得分信息
 	print("消除 %d 个圆点 (连锁次数 = %d)" % [points_count, current_chain])
 	print("基础得分 = %d × %d = %d" % [base_score, points_count, base_points])
-	print("额外消除加成 = %d × (%d - %d) = %d" % [base_score, points_count, min_match_count, extra_points])
-	print("连锁消除加成 = 10 × %d = %d" % [current_chain, chain_bonus])
+	print("额外消除加成 = %d × (%d - %d) = %d" % [extra_score_base, points_count, min_match_count, extra_points])
+	print("连锁消除加成 = %d × (%d的平方) = %d" % [chain_bonus_base, current_chain, chain_bonus])
 	print("总得分 = %d + %d + %d = %d" % [base_points, extra_points, chain_bonus, total_score])
 	
 	# 更新总分
@@ -1286,6 +1291,9 @@ func end_diameter_drag():
 		return
 	
 	print("结束直径拖动 - 步数:", diameter_steps, "方向:", "顺时针" if diameter_dragging_clockwise else "逆时针")
+	
+	# 重置连锁计数
+	chain_match_count = 0
 	
 	diameter_drag_active = false
 	diameter_snapping = true

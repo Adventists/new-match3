@@ -67,14 +67,18 @@ var current_mode = ring_mode  # 当前选择模式
 var selected_diameter = -1  # 当前选中的直径（-1表示未选中）
 
 # 直径拖动相关变量
-var diameter_drag_active = false  # 是否在拖动直径
-var diameter_drag_start_position = Vector2()  # 拖动起始位置
-var diameter_drag_offset = 0.0  # 当前拖动偏移量
+var diameter_drag_active: bool = false
+var diameter_drag_start_position: Vector2
+var diameter_drag_offset: float = 0.0
 var diameter_original_positions = {}  # 存储点的原始位置
 var diameter_original_index = 0  # 拖动开始时的位置索引
-var diameter_snapping = false  # 是否正在吸附
+var diameter_snapping: bool = false
 var diameter_snap_target = 0  # 吸附目标位置
-var diameter_snap_progress = 0.0  # 吸附进度
+var diameter_snap_progress: float = 0.0
+var diameter_points = [] # 存储当前直径上所有点的数组
+var diameter_dragging_clockwise = false # 拖动方向
+var diameter_target_positions = [] # 目标位置
+var diameter_steps = 0 # 移动的格数
 
 # 鼠标交互相关变量
 var is_dragging = false             # 是否正在拖动
@@ -201,42 +205,7 @@ func _process(delta):
 	
 	# 直径的吸附动画
 	if diameter_snapping:
-		diameter_snap_progress += delta * snap_speed
-		if diameter_snap_progress >= 1.0:
-			diameter_snap_progress = 1.0
-			diameter_snapping = false
-			
-			# 如果有实际移动，执行移动
-			if diameter_snap_target > 0:
-				move_diameter_clockwise_direct()
-			elif diameter_snap_target < 0:
-				move_diameter_counter_clockwise_direct()
-			
-			# 重置拖动状态
-			diameter_drag_offset = 0.0
-			diameter_original_positions.clear()
-			
-			# 更新所有点的位置
-			update_all_dots_positions()
-			
-			# 检查消除
-			check_all_matches()
-			
-			if remaining_moves <= 0:
-				state = wait
-			else:
-				state = move
-		else:
-			# 计算当前的吸附偏移量
-			var target_offset = 0.0
-			if diameter_snap_target != 0:
-				target_offset = diameter_snap_target * spacing
-			
-			# 使用lerp进行平滑过渡
-			var current_offset = lerp(diameter_drag_offset, target_offset, diameter_snap_progress)
-			
-			# 更新点的位置
-			update_diameter_snap_positions(current_offset)
+		update_diameter_snap(delta)
 
 func _input(event):
 	if state == wait or is_rotating or is_diameter_moving:
@@ -1037,7 +1006,7 @@ func start_diameter_drag(position: Vector2):
 	if selected_diameter == -1 or state != move:
 		return
 	
-	print("开始直径拖动")
+	print("开始直径拖动 - 直径索引:", selected_diameter)
 	
 	# 完全重置所有拖动状态
 	diameter_drag_active = true
@@ -1046,21 +1015,86 @@ func start_diameter_drag(position: Vector2):
 	diameter_snapping = false
 	diameter_snap_progress = 0.0
 	diameter_snap_target = 0
+	diameter_steps = 0
+	diameter_points.clear()
+	diameter_target_positions.clear()
 	
 	# 清理并记录点的原始位置
 	diameter_original_positions.clear()
 	
 	# 计算直径两端的角度索引
-	var angle_index1 = selected_diameter
-	var angle_index2 = (selected_diameter + num_angles / 2) % num_angles
+	var angle_index1 = selected_diameter  # 3点钟方向
+	var angle_index2 = (selected_diameter + num_angles / 2) % num_angles  # 9点钟方向
 	
-	# 记录直径上所有点的当前位置和引用
+	print("直径端点角度索引: ", angle_index1, "点钟和", angle_index2, "点钟")
+	
+	# 收集直径上所有点并记录它们的位置
+	# 按照指定的循环顺序排列: [第1层-3点, 第2层-3点, 第3层-3点, 第4层-3点, 第4层-9点, 第3层-9点, 第2层-9点, 第1层-9点]
+	
+	# 首先添加3点钟方向的点（从内到外）
 	for radius_index in range(num_radii):
 		if all_dots[angle_index1][radius_index] != null:
+			diameter_points.append({
+				"dot": all_dots[angle_index1][radius_index],
+				"position": all_dots[angle_index1][radius_index].position,
+				"angle_index": angle_index1,
+				"radius_index": radius_index,
+				"end": 0,  # 0表示3点钟端
+				"label": "第" + str(radius_index + 1) + "层-" + str(angle_index1) + "点"
+			})
 			diameter_original_positions[Vector2(angle_index1, radius_index)] = all_dots[angle_index1][radius_index].position
-		
+	
+	# 然后添加9点钟方向的点（从外到内）
+	for radius_index in range(num_radii - 1, -1, -1):
 		if all_dots[angle_index2][radius_index] != null:
+			diameter_points.append({
+				"dot": all_dots[angle_index2][radius_index],
+				"position": all_dots[angle_index2][radius_index].position,
+				"angle_index": angle_index2,
+				"radius_index": radius_index,
+				"end": 1,  # 1表示9点钟端
+				"label": "第" + str(radius_index + 1) + "层-" + str(angle_index2) + "点"
+			})
 			diameter_original_positions[Vector2(angle_index2, radius_index)] = all_dots[angle_index2][radius_index].position
+	
+	# 计算所有可能的目标位置（用于动画）
+	diameter_target_positions = calculate_all_diameter_positions()
+	
+	print("直径上找到", diameter_points.size(), "个点")
+	for i in range(diameter_points.size()):
+		print("点", i, ": ", diameter_points[i].label)
+
+# 计算直径上所有可能的位置
+func calculate_all_diameter_positions() -> Array:
+	var positions = []
+	var angle_index1 = selected_diameter  # 3点钟方向
+	var angle_index2 = (selected_diameter + num_angles / 2) % num_angles  # 9点钟方向
+	
+	# 添加3点钟方向的位置（从内到外）
+	for radius_index in range(num_radii):
+		var pos = Vector2(
+			center.x + cos(angle_index1 * (2 * PI / num_angles)) * (base_radius + radius_index * spacing),
+			center.y + sin(angle_index1 * (2 * PI / num_angles)) * (base_radius + radius_index * spacing)
+		)
+		positions.append({
+			"position": pos,
+			"angle_index": angle_index1,
+			"radius_index": radius_index
+		})
+	
+	# 添加9点钟方向的位置（从外到内）
+	for radius_index in range(num_radii - 1, -1, -1):
+		var pos = Vector2(
+			center.x + cos(angle_index2 * (2 * PI / num_angles)) * (base_radius + radius_index * spacing),
+			center.y + sin(angle_index2 * (2 * PI / num_angles)) * (base_radius + radius_index * spacing)
+		)
+		positions.append({
+			"position": pos,
+			"angle_index": angle_index2,
+			"radius_index": radius_index
+		})
+	
+	return positions
 
 # 更新直径的拖动
 func update_diameter_drag(position: Vector2):
@@ -1068,223 +1102,210 @@ func update_diameter_drag(position: Vector2):
 		return
 	
 	# 如果原始位置为空，中止拖动
-	if diameter_original_positions.size() == 0:
+	if diameter_original_positions.size() == 0 or diameter_points.size() == 0:
 		diameter_drag_active = false
 		return
 	
-	# 计算直径的方向向量
-	var diameter_angle = selected_diameter * (PI / (num_angles / 2))
-	var direction_vector = Vector2(cos(diameter_angle), sin(diameter_angle))
+	# 计算直径的方向向量（使用沿着直径的矢量，而不是垂直矢量）
+	var diameter_angle = selected_diameter * (2 * PI / num_angles)
+	var diameter_vector = Vector2(cos(diameter_angle), sin(diameter_angle))  # 沿直径的向量
 	
-	# 计算拖动距离在直径方向上的投影
+	# 计算鼠标移动向量
 	var drag_vector = position - diameter_drag_start_position
-	var drag_projection = drag_vector.dot(direction_vector)
+	
+	# 计算拖动向量在垂直于直径方向的投影
+	# 使用叉积计算垂直方向的移动量（2D叉积返回一个标量）
+	var cross_product = diameter_vector.x * drag_vector.y - diameter_vector.y * drag_vector.x
+	var drag_projection = cross_product  # 正值表示向一个方向，负值表示向另一个方向
 	
 	# 设置拖动偏移量
 	diameter_drag_offset = drag_projection
 	
-	# 计算应该移动的格数（每个spacing距离为一格）
-	var grid_move = int(abs(diameter_drag_offset) / spacing)
-	if grid_move > num_radii - 1:
-		grid_move = grid_move % num_radii  # 确保循环移动不超过环的数量
+	# 计算应该移动的格数
+	var drag_distance = abs(diameter_drag_offset)
+	var threshold = spacing * 0.5  # 移动一格的阈值，调低使拖动更敏感
+	var steps = int(floor(drag_distance / threshold))
+	if steps >= diameter_points.size():
+		steps = steps % diameter_points.size()
 	
-	# 更新视觉效果
-	preview_diameter_movement(grid_move, diameter_drag_offset > 0)
-
-# 预览直径移动效果（只改变视觉，不改变数据）
-func preview_diameter_movement(steps: int, is_clockwise: bool):
-	if selected_diameter == -1:
-		return
+	# 只有当步数变化时才更新和打印
+	if steps != diameter_steps or diameter_dragging_clockwise != (drag_projection > 0):
+		diameter_steps = steps
+		diameter_dragging_clockwise = drag_projection > 0  # 根据投影方向确定顺时针/逆时针
 		
-	# 计算直径两端的角度索引
-	var angle_index1 = selected_diameter
-	var angle_index2 = (selected_diameter + num_angles / 2) % num_angles
-	
-	# 创建直径上所有点的临时数组（固定8个位置）
-	var temp_positions = []  # 存储所有可能的位置
-	var temp_dots = []  # 存储直径上的点
-	
-	# 先收集所有可能的位置（直径上的8个点位置）
-	for radius_index in range(num_radii):
-		# 第一端的位置
-		var pos1 = Vector2(
-			center.x + cos(angle_index1 * (2 * PI / num_angles)) * (base_radius + radius_index * spacing),
-			center.y + sin(angle_index1 * (2 * PI / num_angles)) * (base_radius + radius_index * spacing)
-		)
-		temp_positions.append(pos1)
-		
-		# 收集第一端的点
-		if all_dots[angle_index1][radius_index] != null:
-			temp_dots.append({"dot": all_dots[angle_index1][radius_index], "original_pos": Vector2(angle_index1, radius_index)})
-	
-	for radius_index in range(num_radii):
-		# 第二端的位置
-		var pos2 = Vector2(
-			center.x + cos(angle_index2 * (2 * PI / num_angles)) * (base_radius + radius_index * spacing),
-			center.y + sin(angle_index2 * (2 * PI / num_angles)) * (base_radius + radius_index * spacing)
-		)
-		temp_positions.append(pos2)
-		
-		# 收集第二端的点
-		if all_dots[angle_index2][radius_index] != null:
-			temp_dots.append({"dot": all_dots[angle_index2][radius_index], "original_pos": Vector2(angle_index2, radius_index)})
-	
-	# 如果没有步数，恢复原始位置
-	if steps == 0:
-		for dot_info in temp_dots:
-			var pos_key = dot_info["original_pos"]
-			if diameter_original_positions.has(pos_key):
-				dot_info["dot"].position = diameter_original_positions[pos_key]
-		return
-	
-	# 根据移动方向和步数计算新位置
-	for i in range(temp_dots.size()):
-		var dot_info = temp_dots[i]
-		var original_index = -1
-		
-		# 找到点的原始索引在temp_positions中的位置
-		for j in range(temp_positions.size()):
-			var pos_key = dot_info["original_pos"]
-			if diameter_original_positions.has(pos_key) and temp_positions[j].distance_to(diameter_original_positions[pos_key]) < 1.0:
-				original_index = j
-				break
-		
-		if original_index != -1:
-			# 计算新位置索引，确保循环
-			var new_index
-			if is_clockwise:
-				new_index = (original_index + steps) % temp_positions.size()
-			else:
-				new_index = (original_index - steps + temp_positions.size()) % temp_positions.size()
+		if steps > 0:
+			print("拖动: ", "顺时针" if diameter_dragging_clockwise else "逆时针", "移动", steps, "格")
 			
-			# 设置点的新位置
-			dot_info["dot"].position = temp_positions[new_index]
+			var direction_text = "向下" if diameter_dragging_clockwise else "向上"
+			print("拖动", direction_text, "- 3点钟端向", "外" if diameter_dragging_clockwise else "内", "移动，9点钟端向", "内" if diameter_dragging_clockwise else "外", "移动")
+	
+	# 更新视觉效果，传递拖动进度以获得更平滑的动画
+	var progress = min(1.0, fmod(drag_distance, threshold) / threshold)
+	preview_diameter_movement(steps, diameter_dragging_clockwise, progress)
+
+# 预览直径移动效果（平滑动画，但不改变数据）
+func preview_diameter_movement(steps: int, is_clockwise: bool, progress: float = 0.0):
+	if diameter_points.size() == 0 or diameter_target_positions.size() == 0:
+		return
+	
+	# 如果没有实际移动
+	if steps == 0:
+		# 恢复所有点到原始位置
+		for point in diameter_points:
+			point.dot.position = point.position
+		return
+	
+	# 计算每个点的新位置
+	for i in range(diameter_points.size()):
+		var point = diameter_points[i]
+		var dot = point.dot
+		
+		# 计算当前步数的目标索引
+		var current_target_index
+		if is_clockwise:
+			current_target_index = (i + steps) % diameter_points.size()
+		else:
+			current_target_index = (i - steps + diameter_points.size()) % diameter_points.size()
+		
+		# 计算下一步的目标索引（用于插值）
+		var next_target_index
+		if is_clockwise:
+			next_target_index = (i + steps + 1) % diameter_points.size()
+		else:
+			next_target_index = (i - steps - 1 + diameter_points.size()) % diameter_points.size()
+		
+		# 获取当前步数目标位置
+		var current_target_position = diameter_target_positions[current_target_index].position
+		
+		# 如果没有下一步，直接使用当前目标
+		if steps == diameter_points.size() - 1:
+			dot.position = current_target_position
+		else:
+			# 获取下一步目标位置
+			var next_target_position = diameter_target_positions[next_target_index].position
+			
+			# 在当前目标和下一步目标之间进行插值
+			dot.position = lerp(current_target_position, next_target_position, progress)
+
+# 完成直径移动（更新数组）
+func finalize_diameter_movement():
+	if diameter_points.size() == 0 or diameter_target_positions.size() == 0:
+		return
+	
+	print("完成直径移动: ", "顺时针" if diameter_dragging_clockwise else "逆时针", "移动", diameter_steps, "格")
+	
+	# 创建新的点数组
+	var new_dots = []
+	for i in range(diameter_points.size()):
+		new_dots.append(null)
+	
+	# 计算每个点的新位置
+	for i in range(diameter_points.size()):
+		var target_index
+		if diameter_dragging_clockwise:
+			target_index = (i + diameter_steps) % diameter_points.size()
+		else:
+			target_index = (i - diameter_steps + diameter_points.size()) % diameter_points.size()
+		
+		# 放到新数组中
+		new_dots[target_index] = diameter_points[i].dot
+	
+	# 更新数组和位置
+	for i in range(diameter_points.size()):
+		var target_pos_data = diameter_target_positions[i]
+		var angle_index = target_pos_data.angle_index
+		var radius_index = target_pos_data.radius_index
+		
+		# 更新all_dots数组
+		all_dots[angle_index][radius_index] = new_dots[i]
+		
+		# 更新点的位置
+		if new_dots[i] != null:
+			new_dots[i].position = target_pos_data.position
+			
+	# 打印更新后的点位置
+	print("更新后的点位置:")
+	for i in range(num_angles):
+		for j in range(num_radii):
+			if all_dots[i][j] != null:
+				print("第", j+1, "层-", i, "点: ", all_dots[i][j].color)
+
+# 更新直径吸附动画
+func update_diameter_snap(delta):
+	if !diameter_snapping:
+		return
+	
+	diameter_snap_progress += delta * snap_speed
+	if diameter_snap_progress >= 1.0:
+		# 动画完成
+		diameter_snap_progress = 1.0
+		diameter_snapping = false
+		
+		# 实际执行点的移动（更新数组）
+		finalize_diameter_movement()
+		
+		# 动画完成后清理状态
+		diameter_points.clear()
+		diameter_target_positions.clear()
+		diameter_original_positions.clear()
+		
+		# 扣除步数并检查消除
+		if diameter_snap_target != 0:
+			print("扣除一步，剩余步数: ", remaining_moves - 1)
+			remaining_moves -= 1
+			update_ui()
+			check_all_matches()
+		
+		if remaining_moves <= 0:
+			state = wait
+		else:
+			state = move
+	else:
+		# 更新动画
+		for i in range(diameter_points.size()):
+			var point = diameter_points[i]
+			var dot = point.dot
+			
+			# 计算目标索引
+			var target_index
+			if diameter_dragging_clockwise:
+				target_index = (i + diameter_steps) % diameter_points.size()
+			else:
+				target_index = (i - diameter_steps + diameter_points.size()) % diameter_points.size()
+			
+			# 平滑移动到目标位置
+			var target_position = diameter_target_positions[target_index].position
+			dot.position = lerp(point.position, target_position, diameter_snap_progress)
 
 # 结束直径拖动
 func end_diameter_drag():
 	if !diameter_drag_active or selected_diameter == -1:
 		return
 	
-	print("结束直径拖动")
+	print("结束直径拖动 - 步数:", diameter_steps, "方向:", "顺时针" if diameter_dragging_clockwise else "逆时针")
 	
 	diameter_drag_active = false
+	diameter_snapping = true
+	diameter_snap_progress = 0.0
 	
-	# 计算最终应该移动的格数
-	var grid_move = int(abs(diameter_drag_offset) / spacing)
-	if grid_move > num_radii - 1:
-		grid_move = grid_move % num_radii  # 确保循环移动不超过环的数量
-	
-	var is_clockwise = diameter_drag_offset > 0
-	
-	# 如果没有实际移动，恢复原位
-	if grid_move <= 0:
+	# 如果没有实际移动
+	if diameter_steps == 0:
+		print("没有移动，恢复原始位置")
 		# 恢复所有点到原始位置
-		for pos_key in diameter_original_positions:
-			var angle_index = int(pos_key.x)
-			var radius_index = int(pos_key.y)
-			
-			if angle_index < 0 or angle_index >= num_angles or radius_index < 0 or radius_index >= num_radii:
-				continue
-				
-			if all_dots[angle_index][radius_index] != null:
-				all_dots[angle_index][radius_index].position = diameter_original_positions[pos_key]
+		for point in diameter_points:
+			point.dot.position = point.position
 		
 		# 清理状态
 		diameter_original_positions.clear()
+		diameter_points.clear()
+		diameter_target_positions.clear()
 		return
 	
-	# 执行实际的点移动（改变数组引用）
-	execute_diameter_movement(grid_move, is_clockwise)
+	# 确定最终的移动步数和方向
+	diameter_snap_target = diameter_steps if diameter_dragging_clockwise else -diameter_steps
+	print("最终移动目标: ", diameter_snap_target, "单位")
 	
-	# 扣除步数
-	remaining_moves -= 1
-	if ui:
-		ui.update_moves(remaining_moves)
-	
-	# 检查消除
-	check_all_matches()
-	
-	if remaining_moves <= 0:
-		state = wait
-	else:
-		state = move
-	
-	# 清理状态
-	diameter_original_positions.clear()
-
-# 执行直径的实际移动，改变数组引用
-func execute_diameter_movement(steps: int, is_clockwise: bool):
-	if selected_diameter == -1 or steps <= 0:
-		return
-		
-	# 计算直径两端的角度索引
-	var angle_index1 = selected_diameter
-	var angle_index2 = (selected_diameter + num_angles / 2) % num_angles
-	
-	# 创建临时数组存储直径上所有点的引用
-	var temp_dots = []
-	var positions = []
-	
-	# 收集第一端的点
-	for radius_index in range(num_radii):
-		temp_dots.append(all_dots[angle_index1][radius_index])
-		positions.append(Vector2(angle_index1, radius_index))
-	
-	# 收集第二端的点
-	for radius_index in range(num_radii):
-		temp_dots.append(all_dots[angle_index2][radius_index])
-		positions.append(Vector2(angle_index2, radius_index))
-	
-	# 创建移动后的新数组
-	var new_dots = []
-	for i in range(temp_dots.size()):
-		var new_index
-		if is_clockwise:
-			new_index = (i + steps) % temp_dots.size()
-		else:
-			new_index = (i - steps + temp_dots.size()) % temp_dots.size()
-		new_dots.append(temp_dots[new_index])
-	
-	# 更新原始数组
-	for i in range(positions.size()):
-		var pos = positions[i]
-		var angle_index = int(pos.x)
-		var radius_index = int(pos.y)
-		all_dots[angle_index][radius_index] = new_dots[i]
-	
-	# 更新点的位置
-	for i in range(positions.size()):
-		var pos = positions[i]
-		var angle_index = int(pos.x)
-		var radius_index = int(pos.y)
-		if all_dots[angle_index][radius_index] != null:
-			var angle = angle_index * (2 * PI / num_angles)
-			var radius = base_radius + radius_index * spacing
-			all_dots[angle_index][radius_index].position = Vector2(cos(angle) * radius, sin(angle) * radius) + center
-
-# 更新直径上点的位置（吸附动画）
-func update_diameter_snap_positions(current_offset: float):
-	# 安全检查
-	if selected_diameter == -1:
-		diameter_snapping = false
-		return
-		
-	# 计算直径的方向向量
-	var diameter_angle = selected_diameter * (PI / (num_angles / 2))
-	var direction_vector = Vector2(cos(diameter_angle), sin(diameter_angle))
-	
-	# 更新直径上所有点的位置
-	for pos_key in diameter_original_positions:
-		var angle_index = int(pos_key.x)
-		var radius_index = int(pos_key.y)
-		
-		if angle_index < 0 or angle_index >= num_angles or radius_index < 0 or radius_index >= num_radii:
-			continue # 越界检查
-			
-		if all_dots[angle_index][radius_index] != null:
-			var original_pos = diameter_original_positions[pos_key]
-			var offset_vector = direction_vector * current_offset
-			all_dots[angle_index][radius_index].position = original_pos + offset_vector
+	# 在移动完成后才会进行后续处理（在snapping动画结束时）
 
 func update_ring_highlights():
 	for i in range(num_radii):
@@ -1586,27 +1607,19 @@ func cancel_diameter_drag():
 	if !diameter_drag_active or selected_diameter == -1:
 		return
 		
-	print("取消直径拖动 - 执行中")
+	print("取消直径拖动")
 	
 	diameter_drag_active = false
 	diameter_snapping = false
 	
 	# 恢复所有点到原始位置
-	for pos_key in diameter_original_positions:
-		var angle_index = int(pos_key.x)
-		var radius_index = int(pos_key.y)
-		
-		if angle_index < 0 or angle_index >= num_angles or radius_index < 0 or radius_index >= num_radii:
-			continue
-			
-		if all_dots[angle_index][radius_index] != null:
-			all_dots[angle_index][radius_index].position = diameter_original_positions[pos_key]
+	for point in diameter_points:
+		point.dot.position = point.position
 	
 	# 清理状态
 	diameter_original_positions.clear()
-	diameter_drag_offset = 0.0
+	diameter_points.clear()
+	diameter_target_positions.clear()
 	
 	# 恢复状态
 	state = move
-	
-	print("直径拖动已取消，点位已重置")

@@ -1115,8 +1115,8 @@ func update_diameter_drag(position: Vector2):
 	
 	# 计算拖动向量在垂直于直径方向的投影
 	# 使用叉积计算垂直方向的移动量（2D叉积返回一个标量）
-	var cross_product = diameter_vector.x * drag_vector.y - diameter_vector.y * drag_vector.x
-	var drag_projection = cross_product  # 正值表示向一个方向，负值表示向另一个方向
+	var dot_product = diameter_vector.dot(drag_vector)
+	var drag_projection = dot_product  # 正值表示向一个方向，负值表示向另一个方向
 	
 	# 设置拖动偏移量
 	diameter_drag_offset = drag_projection

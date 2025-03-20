@@ -6,3 +6,6 @@ res://Scenes/Dots/yellow_dot.tscn
 res://Scenes/Dots/gray_dot.tscn
 res://Scenes/PuzzleUI.tscn
 res://Scenes/EndlessUI.tscn
+res://Scripts/disk.gd
+res://Scripts/MainMenu.gd
+res://Resources/puzzle_levels.json

@@ -665,11 +665,7 @@ func destroy_matches():
 		chain_match_count = 0
 
 func collapse_columns():
-	# 在解谜模式中，不需要下落和填充新的点
-	if game_mode == puzzle_mode:
-		state = move
-		return
-	
+	# 在解谜模式中，将点向外移动填补空位
 	var moved = false
 	
 	# 从外圈向内圈遍历
@@ -693,32 +689,39 @@ func collapse_columns():
 		refill_timer.start()
 
 func refill_columns():
-	# 在解谜模式中，不需要填充新的点
-	if game_mode == puzzle_mode:
-		state = move
-		return
-	
 	var refilled = false
 	
 	for angle_index in num_angles:
 		for radius_index in num_radii:
 			if all_dots[angle_index][radius_index] == null and !restricted_fill(Vector2(angle_index, radius_index)):
-				var rand = floor(randf_range(0, possible_dots.size()))
-				var dot = possible_dots[rand].instantiate()
-				var loops = 0
-				
-				while (check_match(angle_index, radius_index) and loops < 100):
-					rand = floor(randf_range(0, possible_dots.size()))
-					loops += 1
-					dot = possible_dots[rand].instantiate()
-				
-				add_child(dot)
-				# 设置初始位置在圆心
-				dot.position = center
-				# 移动到目标位置
-				dot.move(grid_to_pixel(angle_index, radius_index))
-				all_dots[angle_index][radius_index] = dot
-				refilled = true
+				if game_mode == puzzle_mode:
+					# 解谜模式下填充灰色点
+					var dot = gray_dot.instantiate()
+					add_child(dot)
+					# 设置初始位置在圆心
+					dot.position = center
+					# 移动到目标位置
+					dot.move(grid_to_pixel(angle_index, radius_index))
+					all_dots[angle_index][radius_index] = dot
+					refilled = true
+				else:
+					# 无限模式下填充彩色点
+					var rand = floor(randf_range(0, possible_dots.size()))
+					var dot = possible_dots[rand].instantiate()
+					var loops = 0
+					
+					while (check_match(angle_index, radius_index) and loops < 100):
+						rand = floor(randf_range(0, possible_dots.size()))
+						loops += 1
+						dot = possible_dots[rand].instantiate()
+					
+					add_child(dot)
+					# 设置初始位置在圆心
+					dot.position = center
+					# 移动到目标位置
+					dot.move(grid_to_pixel(angle_index, radius_index))
+					all_dots[angle_index][radius_index] = dot
+					refilled = true
 	
 	if refilled:
 		await get_tree().create_timer(0.3).timeout

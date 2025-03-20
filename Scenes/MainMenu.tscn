@@ -20,18 +20,37 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0, 0, 0, 1)
 
+[node name="RichTextLabel" type="RichTextLabel" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.508
+anchor_top = 0.273
+anchor_right = 0.508
+anchor_bottom = 0.273
+offset_left = -80.192
+offset_top = -127.552
+offset_right = 130.808
+offset_bottom = -54.552
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/bold_italics_font_size = 30
+theme_override_font_sizes/italics_font_size = 30
+bbcode_enabled = true
+text = "[i]Match 4 Ever[/i]"
+tab_size = 5
+
 [node name="Title" type="Label" parent="."]
 layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
 offset_left = -200.0
-offset_top = 100.0
+offset_top = 176.0
 offset_right = 200.0
-offset_bottom = 200.0
+offset_bottom = 276.0
 grow_horizontal = 2
 theme_override_font_sizes/font_size = 64
-text = "环形消消乐"
+text = "4 消消乐"
 horizontal_alignment = 1
 vertical_alignment = 1
 

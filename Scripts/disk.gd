@@ -712,9 +712,6 @@ func destroy_matches():
 		collapse_timer.start()
 		update_ui()
 	else:
-		# 所有消除结束，播放评价音效
-		play_rating_sound()
-		
 		state = move
 		# 重置连锁计数
 		chain_match_count = 0
@@ -786,9 +783,21 @@ func refill_columns():
 		if check_all_matches():
 			state = wait
 		else:
+			# 没有新的匹配，播放评价音效
+			if total_match_chains > 0:  # 只有在有消除发生时才播放评价音效
+				play_rating_sound()
 			state = move
+			# 重置连锁计数和总消除次数
+			chain_match_count = 0
+			total_match_chains = 0
 	else:
+		# 没有填充新的点，说明消除已经完全结束
+		if total_match_chains > 0:  # 只有在有消除发生时才播放评价音效
+			play_rating_sound()
 		state = move
+		# 重置连锁计数和总消除次数
+		chain_match_count = 0
+		total_match_chains = 0
 
 func grid_to_pixel(angle_index, radius_index, _apply_rotation: bool = true):  # 添加下划线前缀
 	var angle_step = 2 * PI / num_angles  # 每个角度片段的弧度

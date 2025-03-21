@@ -12,6 +12,16 @@ enum {ring_mode, diameter_mode} # 选择模式
 # 5. 只有在环的位置确实发生变化时才会消耗步数
 # 6. 在拖动结束后检测消除
 
+# 音效资源预加载
+@onready var sound_match_basic = preload("res://Assets/Music/消除个数-基础.mp3")
+@onready var sound_match_basic_1 = preload("res://Assets/Music/消除个数-基础+1.mp3")
+@onready var sound_match_basic_2 = preload("res://Assets/Music/消除个数-基础+2.mp3") 
+@onready var sound_rating_1 = preload("res://Assets/Music/消除评价-1级.mp3")
+@onready var sound_rating_2 = preload("res://Assets/Music/消除评价-2级.mp3")
+
+# 音效播放相关变量
+var total_match_chains = 0  # 总消除次数，用于评价音效
+
 var state
 var remaining_moves = 10 #剩余步数
 var score = 0 #分数
@@ -638,8 +648,45 @@ func calculate_score(matched_dots: Array, current_chain: int):
 	score += total_score
 	print("消除得分: %d, 总分: %d" % [total_score, score])
 	
+	# 播放个数音效
+	play_match_sound(points_count, current_chain)
+	
+	# 增加总消除次数
+	total_match_chains += 1
+	
 	# 在消除完成后，增加连锁计数
 	chain_match_count += 1
+
+# 添加播放消除音效的函数
+func play_match_sound(points_count: int, current_chain: int):
+	var sound_to_play = null
+	
+	# 确定要播放的个数音效
+	# 优先级：连锁 > 点数多少
+	
+	# 连锁消除逻辑
+	if current_chain >= 2:
+		sound_to_play = sound_match_basic_2
+	elif current_chain == 1:
+		sound_to_play = sound_match_basic_1
+	# 非连锁消除，根据点数判断
+	elif points_count > min_match_count * 2:
+		sound_to_play = sound_match_basic_2
+	elif points_count > min_match_count:
+		sound_to_play = sound_match_basic_1
+	else:
+		sound_to_play = sound_match_basic
+	
+	# 播放音效
+	if sound_to_play:
+		var audio_player = AudioStreamPlayer.new()
+		audio_player.stream = sound_to_play
+		add_child(audio_player)
+		audio_player.play()
+		
+		# 播放完成后自动移除
+		await audio_player.finished
+		audio_player.queue_free()
 
 # 在所有消除和检查完成后，重置连锁计数
 func destroy_matches():
@@ -665,9 +712,14 @@ func destroy_matches():
 		collapse_timer.start()
 		update_ui()
 	else:
+		# 所有消除结束，播放评价音效
+		play_rating_sound()
+		
 		state = move
 		# 重置连锁计数
 		chain_match_count = 0
+		# 重置总消除次数
+		total_match_chains = 0
 
 func collapse_columns():
 	# 在解谜模式中，将点向外移动填补空位
@@ -1634,3 +1686,24 @@ func cancel_diameter_drag():
 	
 	# 恢复状态
 	state = move
+
+# 添加播放评价音效的函数
+func play_rating_sound():
+	var sound_to_play = null
+	
+	# 根据总消除次数决定评价等级
+	if total_match_chains >= 2:
+		sound_to_play = sound_rating_2
+	elif total_match_chains == 1:
+		sound_to_play = sound_rating_1
+	
+	# 播放音效
+	if sound_to_play:
+		var audio_player = AudioStreamPlayer.new()
+		audio_player.stream = sound_to_play
+		add_child(audio_player)
+		audio_player.play()
+		
+		# 播放完成后自动移除
+		await audio_player.finished
+		audio_player.queue_free()

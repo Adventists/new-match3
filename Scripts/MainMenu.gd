@@ -10,6 +10,7 @@ func _ready():
 	endless_mode_button.pressed.connect(_on_endless_mode_pressed)
 	puzzle_mode_button.pressed.connect(_on_puzzle_mode_pressed)
 	exit_button.pressed.connect(_on_exit_pressed)
+	AudioManager.play_bgm()
 
 
 func _on_endless_mode_pressed():
